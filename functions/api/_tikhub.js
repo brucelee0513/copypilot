@@ -2,30 +2,27 @@ const ENDPOINTS = [
   { path: '/api/v1/douyin/web/fetch_one_video_by_share_url', param: 'share_url' },
   { path: '/api/v1/douyin/app/v3/fetch_one_video_by_share_url', param: 'share_url' },
   { path: '/api/v1/tiktok/app/v3/fetch_one_video_by_share_url', param: 'share_url' },
+  { path: '/api/v1/xiaohongshu/web/get_note_info_v7', param: 'share_text' },
+  { path: '/api/v1/xiaohongshu/web/get_note_info_v5', param: 'share_text' },
+  { path: '/api/v1/xiaohongshu/web/get_note_info_v4', param: 'share_text' },
+  { path: '/api/v1/xiaohongshu/app_v2/get_image_note_detail', param: 'share_text' },
+  { path: '/api/v1/xiaohongshu/app_v2/get_video_note_detail', param: 'share_text' },
+  { path: '/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v5', param: 'short_url' },
+  { path: '/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v4', param: 'short_url' },
   { path: '/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3', param: 'short_url' }
 ];
 
 export async function extractByUrl({ apiKey, baseUrl, url }) {
+  if (isXiaohongshuUrl(url)) {
+    return extractXiaohongshu({ apiKey, baseUrl, url });
+  }
+
   const endpoints = rankEndpoints(url);
   const errors = [];
 
   for (const endpoint of endpoints) {
     try {
-      const target = new URL(`${baseUrl}${endpoint.path}`);
-      target.searchParams.set(endpoint.param, url);
-
-      const response = await fetch(target.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
-      });
-
-      const payload = await safeJson(response);
-      if (response.ok && isSuccessPayload(payload)) {
-        return payload.data || payload;
-      }
-      errors.push(payload?.message || payload?.msg || `${response.status}`);
+      return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
     } catch (error) {
       errors.push(error.message);
     }
@@ -45,13 +42,150 @@ export function json(data, status = 200) {
 
 function rankEndpoints(url) {
   const lower = url.toLowerCase();
-  if (lower.includes('xiaohongshu') || lower.includes('xhslink')) {
-    return [ENDPOINTS[3], ...ENDPOINTS.filter((item) => item !== ENDPOINTS[3])];
-  }
   if (lower.includes('tiktok')) {
     return [ENDPOINTS[2], ...ENDPOINTS.filter((item) => item !== ENDPOINTS[2])];
   }
-  return ENDPOINTS;
+  return ENDPOINTS.slice(0, 3);
+}
+
+async function extractXiaohongshu({ apiKey, baseUrl, url }) {
+  const errors = [];
+  const parsed = parseXiaohongshuUrl(url);
+
+  if (parsed.noteId && parsed.xsecToken) {
+    try {
+      return await requestTikhub({
+        apiKey,
+        baseUrl,
+        endpoint: { path: '/api/v1/xiaohongshu/web_v3/fetch_note_detail' },
+        params: { note_id: parsed.noteId, xsec_token: parsed.xsecToken }
+      });
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+
+  try {
+    const shareInfo = await requestTikhub({
+      apiKey,
+      baseUrl,
+      endpoint: { path: '/api/v1/xiaohongshu/web/get_note_id_and_xsec_token' },
+      params: { share_text: url }
+    });
+    const noteId = findFirstValue(shareInfo, ['note_id', 'noteId', 'id']) || parsed.noteId;
+    const xsecToken = findFirstValue(shareInfo, ['xsec_token', 'xsecToken']) || parsed.xsecToken;
+
+    if (noteId && xsecToken) {
+      return await requestTikhub({
+        apiKey,
+        baseUrl,
+        endpoint: { path: '/api/v1/xiaohongshu/web_v3/fetch_note_detail' },
+        params: { note_id: noteId, xsec_token: xsecToken }
+      });
+    }
+  } catch (error) {
+    errors.push(error.message);
+  }
+
+  const endpoints = ENDPOINTS.slice(3);
+  for (const endpoint of endpoints) {
+    try {
+      return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+
+  if (parsed.noteId && !parsed.xsecToken) {
+    errors.unshift('小红书网页长链缺少 xsec_token，TikHub 需要完整分享链接才能解析图文笔记。请从小红书“分享-复制链接”重新复制完整链接。');
+  }
+
+  throw new Error(firstReadableError(errors) || '小红书图文解析失败，请确认作品公开且链接未过期。');
+}
+
+async function requestTikhub({ apiKey, baseUrl, endpoint, params }) {
+  const target = new URL(`${baseUrl}${endpoint.path}`);
+  for (const [key, value] of Object.entries(params || {})) {
+    if (value !== undefined && value !== null && value !== '') target.searchParams.set(key, value);
+  }
+
+  const response = await fetch(target.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${apiKey}`
+    }
+  });
+
+  const payload = await safeJson(response);
+  if (response.ok && isSuccessPayload(payload)) {
+    return payload.data || payload;
+  }
+
+  throw new Error(readErrorMessage(payload, response.status, endpoint.path));
+}
+
+function isXiaohongshuUrl(url) {
+  const lower = String(url || '').toLowerCase();
+  return lower.includes('xiaohongshu') || lower.includes('xhslink');
+}
+
+function parseXiaohongshuUrl(url) {
+  const parsed = { noteId: '', xsecToken: '' };
+  const text = String(url || '');
+  const noteMatch = text.match(/\/(?:discovery\/item|explore)\/([0-9a-f]{20,32})/i);
+  if (noteMatch) parsed.noteId = noteMatch[1];
+
+  try {
+    const target = new URL(text);
+    parsed.xsecToken = target.searchParams.get('xsec_token') || '';
+  } catch {
+    const tokenMatch = text.match(/[?&]xsec_token=([^&#\s]+)/i);
+    if (tokenMatch) parsed.xsecToken = decodeURIComponent(tokenMatch[1]);
+  }
+
+  return parsed;
+}
+
+function findFirstValue(input, keys) {
+  const queue = [input];
+  const seen = new Set();
+
+  while (queue.length) {
+    const item = queue.shift();
+    if (!item || typeof item !== 'object' || seen.has(item)) continue;
+    seen.add(item);
+
+    for (const key of keys) {
+      if (typeof item[key] === 'string' && item[key]) return item[key];
+    }
+
+    for (const value of Object.values(item)) {
+      if (value && typeof value === 'object') queue.push(value);
+    }
+  }
+
+  return '';
+}
+
+function readErrorMessage(payload, status, path) {
+  const message =
+    payload?.message_zh ||
+    payload?.message ||
+    payload?.msg ||
+    payload?.detail ||
+    payload?.error?.message ||
+    payload?.raw ||
+    '';
+
+  if (typeof message === 'string' && message.trim()) return message.trim();
+  if (status === 400 && path.includes('/xiaohongshu/')) {
+    return 'TikHub 返回 400：小红书链接参数不完整、作品不可访问，或该接口不支持这类笔记。';
+  }
+  return `${status}`;
+}
+
+function firstReadableError(errors) {
+  return errors.find((item) => item && !/^\d+$/.test(item));
 }
 
 function isSuccessPayload(payload) {
