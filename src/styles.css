@@ -53,6 +53,12 @@
   --theme-border: #fde68a;
 }
 
+.theme-green {
+  --theme: #059669;
+  --theme-soft: #ecfdf5;
+  --theme-border: #a7f3d0;
+}
+
 * {
   box-sizing: border-box;
 }

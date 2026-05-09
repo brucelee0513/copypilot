@@ -7,6 +7,7 @@ import {
   Clipboard,
   Copy,
   FileAudio,
+  FileText,
   FileVideo,
   Image,
   Link,
@@ -48,6 +49,22 @@ const pageMap = {
     subtitle: '输入图文作品链接，提取图片素材、标题、正文和标签。',
     type: 'image',
     theme: 'pink'
+  },
+  '/article': {
+    badge: '提取文章',
+    title: '公众号文章提取工具',
+    subtitle: '输入公众号文章或网页文章链接，提取文章标题、正文、原文图片和基础信息。',
+    type: 'article',
+    theme: 'green',
+    seoTitle: '公众号文章提取工具 - 在线提取文章正文和图片'
+  },
+  '/wechat-article': {
+    badge: '公众号文章提取',
+    title: '公众号文章提取工具',
+    subtitle: '粘贴公众号文章链接，提取文章标题、正文、原文图片和基础信息。',
+    type: 'article',
+    theme: 'green',
+    seoTitle: '公众号文章提取工具 - 在线提取微信公众号文章'
   },
   '/xiaohongshu': {
     badge: '提取文案',
@@ -207,6 +224,7 @@ const faqs = [
 const seoToolLinks = [
   ['/douyin-video-download', '抖音视频提取'],
   ['/xiaohongshu-image-download', '小红书图文提取'],
+  ['/wechat-article', '公众号文章提取'],
   ['/tiktok-video-download', 'TikTok 视频提取'],
   ['/video-to-text', '视频转文字'],
   ['/audio-to-text', '音频转文字']
@@ -250,6 +268,9 @@ const resultTitle = computed(() => {
   const explicitTitle =
     result.value?.title ||
     detail?.title ||
+    detail?.msg_title ||
+    detail?.appmsg_title ||
+    detail?.article_title ||
     result.value?.note?.title ||
     result.value?.aweme_detail?.desc ||
     result.value?.itemInfo?.itemStruct?.desc ||
@@ -265,6 +286,7 @@ const resultHeading = computed(() => {
   if (toolPage.value?.type === 'text') return '文案提取结果';
   if (toolPage.value?.type === 'video') return '视频提取结果';
   if (toolPage.value?.type === 'image') return '图文提取结果';
+  if (toolPage.value?.type === 'article') return '文章提取结果';
   return `${toolPage.value?.badge || '内容'}提取结果`;
 });
 
@@ -275,6 +297,7 @@ const resultText = computed(() => {
   return (
     data.transcript ||
     data.text ||
+    stripHtml(detail?.content || detail?.content_html || detail?.html || detail?.article_content || detail?.digest) ||
     detail?.desc ||
     detail?.displayTitle ||
     data.desc ||
@@ -348,21 +371,30 @@ const imageLinks = computed(() => {
   const links = [];
 
   if (detail.cover?.url_list?.length) links.push(detail.cover.url_list[0]);
+  if (detail.cover) links.push(detail.cover);
+  if (detail.cover_url) links.push(detail.cover_url);
+  if (detail.msg_cdn_url) links.push(detail.msg_cdn_url);
   for (const image of images) {
     const bestImage = pickImageUrl(image);
     if (bestImage) links.push(bestImage);
   }
+  links.push(...extractImageUrls(articleHtml.value));
   return [...new Set(links.map(normalizeMediaUrl).filter(Boolean))].slice(0, 8);
 });
 
 const primaryDetail = computed(() => findPrimaryDetail(result.value));
+const articleHtml = computed(() => {
+  const detail = primaryDetail.value || {};
+  return detail.content_html || detail.html || detail.content || detail.article_content || result.value?.html || '';
+});
 
 const hasResultContent = computed(() => result.value || videoLinks.value.length || imageLinks.value.length);
 const shouldShowVideoResult = computed(() => toolPage.value?.type === 'video' && videoLinks.value.length);
-const shouldShowImageResult = computed(() => toolPage.value?.type === 'image' && imageLinks.value.length);
+const shouldShowImageResult = computed(() => ['image', 'article'].includes(toolPage.value?.type) && imageLinks.value.length);
 const copyBlockTitle = computed(() => {
   if (toolPage.value?.type === 'text') return textMode.value === 'file' ? '视频/音频识别文案' : '视频识别文案';
   if (toolPage.value?.type === 'image') return '图文正文';
+  if (toolPage.value?.type === 'article') return '文章正文';
   return '作品文案';
 });
 
@@ -371,10 +403,14 @@ function findPrimaryDetail(data) {
   return (
     data.noteCard ||
     data.note ||
+    data.article ||
+    data.mp_article ||
     data.aweme_detail ||
     data.itemInfo?.itemStruct ||
     data.data?.items?.[0]?.noteCard ||
     data.items?.[0]?.noteCard ||
+    data.data?.article ||
+    data.data?.mp_article ||
     data.data?.noteCard ||
     data.data?.note ||
     data.data ||
@@ -406,6 +442,30 @@ function pickImageUrl(image) {
   if (image.display_image?.url_list?.length) return image.display_image.url_list[0];
   if (image.urlPre) return image.urlPre;
   return image.infoList?.[0]?.url || '';
+}
+
+function stripHtml(value) {
+  return String(value || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractImageUrls(html) {
+  const text = String(html || '');
+  const urls = [];
+  for (const match of text.matchAll(/<img[^>]+(?:data-src|src)=["']([^"']+)["']/gi)) {
+    urls.push(match[1]);
+  }
+  return urls;
 }
 
 function navigate(path) {
@@ -560,6 +620,7 @@ function resetResult() {
         <a href="/video" @click.prevent="navigate('/video')">提取视频</a>
         <a href="/text" @click.prevent="navigate('/text')">提取文案</a>
         <a href="/image-text" @click.prevent="navigate('/image-text')">提取图文</a>
+        <a href="/article" @click.prevent="navigate('/article')">提取文章</a>
       </nav>
       <button class="login-button">登录</button>
     </header>
@@ -618,7 +679,9 @@ function resetResult() {
                 ? '粘贴作品链接，提取视频文件'
                 : toolPage?.type === 'image'
                   ? '粘贴图文作品链接，提取图片、标题、文案和Tag'
-                  : '粘贴作品链接，提取文案、标题和Tag'
+                  : toolPage?.type === 'article'
+                    ? '粘贴公众号文章或网页文章链接'
+                    : '粘贴作品链接，提取文案、标题和Tag'
             "
           />
           <div class="button-row">
@@ -671,6 +734,7 @@ function resetResult() {
           <button @click="navigate('/video')"><FileVideo :size="17" /> 提取视频</button>
           <button @click="navigate('/text')"><Captions :size="17" /> 提取文案</button>
           <button @click="navigate('/image-text')"><Image :size="17" /> 提取图文</button>
+          <button @click="navigate('/article')"><FileText :size="17" /> 提取文章</button>
         </div>
       </section>
 
@@ -811,6 +875,7 @@ function resetResult() {
           <a href="/video" @click.prevent="navigate('/video')">提取视频</a>
           <a href="/text" @click.prevent="navigate('/text')">提取文案</a>
           <a href="/image-text" @click.prevent="navigate('/image-text')">提取图文</a>
+          <a href="/article" @click.prevent="navigate('/article')">提取文章</a>
         </nav>
         <nav>
           <strong>热门工具</strong>
