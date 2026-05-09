@@ -415,7 +415,9 @@ async function extract() {
       ? '提取完成，已识别视频本身文案，并整理标题和标签。'
       : '提取完成，已整理视频、标题、文案和标签。';
   } catch (err) {
-    error.value = err.message || '提取失败，请稍后重试。';
+    error.value = err.message === 'Failed to fetch'
+      ? '接口请求失败或超时，请稍后重试；如果是小红书图文，请优先使用手机 App 复制的完整分享链接。'
+      : err.message || '提取失败，请稍后重试。';
   } finally {
     loading.value = false;
   }

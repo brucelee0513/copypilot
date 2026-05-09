@@ -87,17 +87,17 @@ async function extractXiaohongshu({ apiKey, baseUrl, url }) {
     errors.push(error.message);
   }
 
-  const endpoints = ENDPOINTS.slice(3);
+  if (parsed.noteId && !parsed.xsecToken) {
+    throw new Error('小红书电脑版分享链接缺少 xsec_token，TikHub 目前无法稳定解析这类图文笔记。请用手机小红书 App 点“分享-复制链接”，再粘贴完整链接重试。');
+  }
+
+  const endpoints = ENDPOINTS.slice(3, 8);
   for (const endpoint of endpoints) {
     try {
       return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
     } catch (error) {
       errors.push(error.message);
     }
-  }
-
-  if (parsed.noteId && !parsed.xsecToken) {
-    errors.unshift('小红书网页长链缺少 xsec_token，TikHub 需要完整分享链接才能解析图文笔记。请从小红书“分享-复制链接”重新复制完整链接。');
   }
 
   throw new Error(firstReadableError(errors) || '小红书图文解析失败，请确认作品公开且链接未过期。');
@@ -109,12 +109,26 @@ async function requestTikhub({ apiKey, baseUrl, endpoint, params }) {
     if (value !== undefined && value !== null && value !== '') target.searchParams.set(key, value);
   }
 
-  const response = await fetch(target.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  let response;
+  try {
+    response = await fetch(target.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`
+      },
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('TikHub 接口响应超时，请稍后重试。');
     }
-  });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const payload = await safeJson(response);
   if (response.ok && isSuccessPayload(payload)) {
