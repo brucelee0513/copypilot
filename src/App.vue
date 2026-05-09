@@ -1404,7 +1404,7 @@ function resetResult() {
           <a href="/image-text" @click.prevent="navigate('/image-text')">{{ uiText.nav[3] }}</a>
           <a href="/article" @click.prevent="navigate('/article')">{{ uiText.nav[4] }}</a>
         </nav>
-        <nav>
+        <nav class="footer-tools">
           <strong>{{ uiText.hot }}</strong>
           <a v-for="[path, label] in seoToolLinks" :key="path" :href="path" @click.prevent="navigate(path)">
             {{ label }}

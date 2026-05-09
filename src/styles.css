@@ -919,9 +919,13 @@ h1 {
   background: #111827;
   color: #fff;
   display: flex;
-  gap: 44px;
+  gap: 56px;
   justify-content: space-between;
-  padding: 42px 6vw;
+  padding: 34px 6vw;
+}
+
+.site-footer > div:first-child {
+  max-width: 420px;
 }
 
 .site-footer p {
@@ -937,8 +941,8 @@ h1 {
 
 .footer-links {
   display: grid;
-  gap: 34px;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 38px;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(330px, 2fr) minmax(110px, 0.8fr);
 }
 
 .site-footer nav strong {
@@ -949,8 +953,18 @@ h1 {
 
 .site-footer a {
   color: #cbd5e1;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
+}
+
+.footer-tools {
+  column-gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(135px, 1fr));
+}
+
+.footer-tools strong {
+  grid-column: 1 / -1;
 }
 
 .spin {
@@ -1022,5 +1036,9 @@ h1 {
 
   .login-button {
     display: none;
+  }
+
+  .footer-tools {
+    grid-template-columns: 1fr;
   }
 }
