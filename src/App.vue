@@ -246,8 +246,10 @@ const legalContent = computed(() => {
 });
 
 const resultTitle = computed(() => {
+  const detail = primaryDetail.value;
   const explicitTitle =
     result.value?.title ||
+    detail?.title ||
     result.value?.note?.title ||
     result.value?.aweme_detail?.desc ||
     result.value?.itemInfo?.itemStruct?.desc ||
@@ -268,10 +270,13 @@ const resultHeading = computed(() => {
 
 const resultText = computed(() => {
   const data = result.value;
+  const detail = primaryDetail.value;
   if (!data) return '';
   return (
     data.transcript ||
     data.text ||
+    detail?.desc ||
+    detail?.displayTitle ||
     data.desc ||
     data.caption ||
     data.aweme_detail?.desc ||
@@ -283,9 +288,11 @@ const resultText = computed(() => {
 
 const publishedText = computed(() => {
   const data = result.value;
+  const detail = primaryDetail.value;
   if (!data) return '';
   return (
     data.publishedText ||
+    detail?.desc ||
     data.desc ||
     data.caption ||
     data.aweme_detail?.desc ||
@@ -296,9 +303,12 @@ const publishedText = computed(() => {
 });
 
 const tags = computed(() => {
+  const detailTags = (primaryDetail.value?.tagList || [])
+    .map((tag) => tag.name ? `#${cleanTopicName(tag.name)}` : '')
+    .filter(Boolean);
   const text = `${publishedText.value} ${resultText.value}`.trim();
-  if (!text) return [];
-  return [...new Set([...text.matchAll(/#[^\s#，,。；;]+/g)].map((match) => match[0]))];
+  const textTags = text ? [...text.matchAll(/#[^\s#，,。；;]+/g)].map((match) => `#${cleanTopicName(match[0])}`) : [];
+  return [...new Set([...detailTags, ...textTags])];
 });
 
 function cleanTitle(value) {
@@ -314,7 +324,7 @@ function cleanTitle(value) {
 const videoLinks = computed(() => {
   const data = result.value;
   if (!data) return [];
-  const detail = data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
+  const detail = primaryDetail.value || data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
   const video = detail.video || data.video || {};
   const links = [];
 
@@ -333,17 +343,19 @@ const previewVideoUrl = computed(() => {
 const imageLinks = computed(() => {
   const data = result.value;
   if (!data) return [];
-  const detail = data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
-  const images = detail.images || detail.image_post_info?.images || data.images || [];
+  const detail = primaryDetail.value || data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
+  const images = detail.imageList || detail.images || detail.image_post_info?.images || data.images || [];
   const links = [];
 
   if (detail.cover?.url_list?.length) links.push(detail.cover.url_list[0]);
   for (const image of images) {
-    if (image.url_list?.length) links.push(image.url_list[0]);
-    if (image.display_image?.url_list?.length) links.push(image.display_image.url_list[0]);
+    const bestImage = pickImageUrl(image);
+    if (bestImage) links.push(bestImage);
   }
-  return [...new Set(links)].slice(0, 8);
+  return [...new Set(links.map(normalizeMediaUrl).filter(Boolean))].slice(0, 8);
 });
+
+const primaryDetail = computed(() => findPrimaryDetail(result.value));
 
 const hasResultContent = computed(() => result.value || videoLinks.value.length || imageLinks.value.length);
 const shouldShowVideoResult = computed(() => toolPage.value?.type === 'video' && videoLinks.value.length);
@@ -353,6 +365,48 @@ const copyBlockTitle = computed(() => {
   if (toolPage.value?.type === 'image') return '图文正文';
   return '作品文案';
 });
+
+function findPrimaryDetail(data) {
+  if (!data) return null;
+  return (
+    data.noteCard ||
+    data.note ||
+    data.aweme_detail ||
+    data.itemInfo?.itemStruct ||
+    data.data?.items?.[0]?.noteCard ||
+    data.items?.[0]?.noteCard ||
+    data.data?.noteCard ||
+    data.data?.note ||
+    data.data ||
+    data
+  );
+}
+
+function normalizeMediaUrl(link) {
+  const value = String(link || '').trim();
+  if (!value) return '';
+  if (value.startsWith('http://')) return `https://${value.slice(7)}`;
+  return value;
+}
+
+function cleanTopicName(value) {
+  return String(value || '')
+    .replace(/^#/, '')
+    .replace(/\[话题\]$/g, '')
+    .trim();
+}
+
+function pickImageUrl(image) {
+  if (!image) return '';
+  if (image.urlDefault) return image.urlDefault;
+  const defaultInfo = image.infoList?.find((item) => item.imageScene === 'WB_DFT');
+  if (defaultInfo?.url) return defaultInfo.url;
+  if (image.url) return image.url;
+  if (image.url_list?.length) return image.url_list[0];
+  if (image.display_image?.url_list?.length) return image.display_image.url_list[0];
+  if (image.urlPre) return image.urlPre;
+  return image.infoList?.[0]?.url || '';
+}
 
 function navigate(path) {
   window.history.pushState({}, '', path);
@@ -674,9 +728,10 @@ function resetResult() {
 
             <article v-if="shouldShowImageResult" class="result-block">
               <span>图片素材</span>
-              <div class="media-links">
+              <div class="image-grid">
                 <a v-for="(link, index) in imageLinks" :key="link" :href="link" target="_blank" rel="noreferrer">
-                  打开图片 {{ index + 1 }}
+                  <img :src="link" :alt="`图片素材 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
+                  <span>打开图片 {{ index + 1 }}</span>
                 </a>
               </div>
             </article>

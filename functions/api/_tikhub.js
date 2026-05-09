@@ -51,6 +51,18 @@ function rankEndpoints(url) {
 async function extractXiaohongshu({ apiKey, baseUrl, url }) {
   const errors = [];
   const parsed = parseXiaohongshuUrl(url);
+  const isShortLink = /xhslink\.com/i.test(url);
+
+  if (isShortLink) {
+    const shortLinkEndpoints = ENDPOINTS.filter((endpoint) => endpoint.path.includes('/web_v2/fetch_feed_notes'));
+    for (const endpoint of shortLinkEndpoints) {
+      try {
+        return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
+      } catch (error) {
+        errors.push(error.message);
+      }
+    }
+  }
 
   if (parsed.noteId && parsed.xsecToken) {
     try {
@@ -91,7 +103,7 @@ async function extractXiaohongshu({ apiKey, baseUrl, url }) {
     throw new Error('小红书电脑版分享链接缺少 xsec_token，TikHub 目前无法稳定解析这类图文笔记。请用手机小红书 App 点“分享-复制链接”，再粘贴完整链接重试。');
   }
 
-  const endpoints = ENDPOINTS.slice(3, 8);
+  const endpoints = ENDPOINTS.slice(3);
   for (const endpoint of endpoints) {
     try {
       return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
