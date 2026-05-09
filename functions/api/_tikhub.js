@@ -2,6 +2,15 @@ const ENDPOINTS = [
   { path: '/api/v1/douyin/web/fetch_one_video_by_share_url', param: 'share_url' },
   { path: '/api/v1/douyin/app/v3/fetch_one_video_by_share_url', param: 'share_url' },
   { path: '/api/v1/tiktok/app/v3/fetch_one_video_by_share_url', param: 'share_url' },
+  { path: '/api/v1/kuaishou/app/fetch_one_video_by_url', param: 'share_text' },
+  { path: '/api/v1/kuaishou/web/fetch_one_video_by_url', param: 'url' },
+  { path: '/api/v1/bilibili/web/fetch_one_video_v3', param: 'url' },
+  { path: '/api/v1/instagram/v1/fetch_post_by_url_v2', param: 'post_url' },
+  { path: '/api/v1/instagram/v1/fetch_post_by_url', param: 'post_url' },
+  { path: '/api/v1/wechat_mp/web/fetch_mp_article_detail_json', param: 'url' }
+];
+
+const XIAOHONGSHU_ENDPOINTS = [
   { path: '/api/v1/xiaohongshu/web/get_note_info_v7', param: 'share_text' },
   { path: '/api/v1/xiaohongshu/web/get_note_info_v5', param: 'share_text' },
   { path: '/api/v1/xiaohongshu/web/get_note_info_v4', param: 'share_text' },
@@ -22,7 +31,9 @@ export async function extractByUrl({ apiKey, baseUrl, url }) {
 
   for (const endpoint of endpoints) {
     try {
-      return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
+      const params = getEndpointParams(endpoint, url);
+      if (!params) continue;
+      return await requestTikhub({ apiKey, baseUrl, endpoint, params });
     } catch (error) {
       errors.push(error.message);
     }
@@ -42,10 +53,89 @@ export function json(data, status = 200) {
 
 function rankEndpoints(url) {
   const lower = url.toLowerCase();
-  if (lower.includes('tiktok')) {
-    return [ENDPOINTS[2], ...ENDPOINTS.filter((item) => item !== ENDPOINTS[2])];
+  const platformRoutes = [
+    {
+      test: /tiktok\.com|vm\.tiktok\.com/i,
+      endpoints: [
+        { path: '/api/v1/tiktok/app/v3/fetch_one_video_by_share_url_v2', param: 'share_url' },
+        { path: '/api/v1/tiktok/app/v3/fetch_one_video_by_share_url', param: 'share_url' }
+      ]
+    },
+    {
+      test: /douyin\.com|iesdouyin\.com/i,
+      endpoints: ENDPOINTS.slice(0, 2)
+    },
+    {
+      test: /kuaishou\.com|gifshow\.com|v\.kuaishou\.com/i,
+      endpoints: ENDPOINTS.slice(3, 5)
+    },
+    {
+      test: /bilibili\.com|b23\.tv/i,
+      endpoints: [
+        { path: '/api/v1/bilibili/web/fetch_one_video_v3', param: 'url' },
+        { path: '/api/v1/bilibili/web/fetch_one_video', param: 'bv_id', derive: extractBilibiliBvId }
+      ]
+    },
+    {
+      test: /instagram\.com/i,
+      endpoints: ENDPOINTS.slice(6, 8)
+    },
+    {
+      test: /mp\.weixin\.qq\.com|weixin\.qq\.com/i,
+      endpoints: [ENDPOINTS[8]]
+    },
+    {
+      test: /youtube\.com|youtu\.be/i,
+      endpoints: [{ path: '/api/v1/youtube/web/get_video_info', param: 'video_id', derive: extractYoutubeId }]
+    },
+    {
+      test: /twitter\.com|x\.com/i,
+      endpoints: [{ path: '/api/v1/twitter/web/fetch_tweet_detail', param: 'tweet_id', derive: extractLastNumericId }]
+    },
+    {
+      test: /threads\.net/i,
+      endpoints: [{ path: '/api/v1/threads/web/fetch_post_detail', param: 'post_id', derive: extractThreadsId }]
+    },
+    {
+      test: /reddit\.com/i,
+      endpoints: [{ path: '/api/v1/reddit/app/fetch_post_details', param: 'post_id', derive: extractRedditPostId, extra: { need_format: 'true' } }]
+    },
+    {
+      test: /weibo\.com/i,
+      endpoints: [
+        { path: '/api/v1/weibo/web_v2/fetch_post_detail', param: 'id', derive: extractLastPathId, extra: { is_get_long_text: 'true' } },
+        { path: '/api/v1/weibo/app/fetch_status_detail', param: 'status_id', derive: extractLastPathId }
+      ]
+    },
+    {
+      test: /lemon8-app\.com|lemon8\.com/i,
+      endpoints: [{ path: '/api/v1/lemon8/app/fetch_post_detail', param: 'item_id', derive: extractLastNumericId }]
+    },
+    {
+      test: /pipix\.com|pipixia\.com/i,
+      endpoints: [{ path: '/api/v1/pipixia/app/fetch_post_detail', param: 'cell_id', derive: extractLastNumericId }]
+    },
+    {
+      test: /zhihu\.com/i,
+      endpoints: [{ path: '/api/v1/zhihu/web/fetch_column_article_detail', param: 'article_id', derive: extractLastNumericId }]
+    }
+  ];
+
+  const route = platformRoutes.find((item) => item.test.test(lower));
+  if (route) {
+    return route.endpoints;
   }
-  return ENDPOINTS.slice(0, 3);
+
+  return ENDPOINTS;
+}
+
+function getEndpointParams(endpoint, url) {
+  const value = endpoint.derive ? endpoint.derive(url) : url;
+  if (!value) return null;
+  return {
+    [endpoint.param]: value,
+    ...(endpoint.extra || {})
+  };
 }
 
 async function extractXiaohongshu({ apiKey, baseUrl, url }) {
@@ -54,7 +144,7 @@ async function extractXiaohongshu({ apiKey, baseUrl, url }) {
   const isShortLink = /xhslink\.com/i.test(url);
 
   if (isShortLink) {
-    const shortLinkEndpoints = ENDPOINTS.filter((endpoint) => endpoint.path.includes('/web_v2/fetch_feed_notes'));
+    const shortLinkEndpoints = XIAOHONGSHU_ENDPOINTS.filter((endpoint) => endpoint.path.includes('/web_v2/fetch_feed_notes'));
     for (const endpoint of shortLinkEndpoints) {
       try {
         return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
@@ -103,7 +193,7 @@ async function extractXiaohongshu({ apiKey, baseUrl, url }) {
     throw new Error('小红书电脑版分享链接缺少 xsec_token，TikHub 目前无法稳定解析这类图文笔记。请用手机小红书 App 点“分享-复制链接”，再粘贴完整链接重试。');
   }
 
-  const endpoints = ENDPOINTS.slice(3);
+  const endpoints = XIAOHONGSHU_ENDPOINTS;
   for (const endpoint of endpoints) {
     try {
       return await requestTikhub({ apiKey, baseUrl, endpoint, params: { [endpoint.param]: url } });
@@ -170,6 +260,55 @@ function parseXiaohongshuUrl(url) {
   }
 
   return parsed;
+}
+
+function extractYoutubeId(url) {
+  try {
+    const target = new URL(url);
+    if (target.hostname.includes('youtu.be')) return target.pathname.split('/').filter(Boolean)[0] || '';
+    return target.searchParams.get('v') || target.pathname.match(/\/shorts\/([^/?#]+)/)?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+function extractBilibiliBvId(url) {
+  return String(url || '').match(/BV[a-zA-Z0-9]+/)?.[0] || '';
+}
+
+function extractLastNumericId(url) {
+  return String(url || '').match(/(\d{6,})(?!.*\d)/)?.[1] || '';
+}
+
+function extractLastPathId(url) {
+  try {
+    const target = new URL(url);
+    return target.pathname.split('/').filter(Boolean).pop() || extractLastNumericId(url);
+  } catch {
+    return extractLastNumericId(url);
+  }
+}
+
+function extractThreadsId(url) {
+  try {
+    const target = new URL(url);
+    const parts = target.pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || '';
+  } catch {
+    return '';
+  }
+}
+
+function extractRedditPostId(url) {
+  try {
+    const target = new URL(url);
+    const parts = target.pathname.split('/').filter(Boolean);
+    const commentsIndex = parts.indexOf('comments');
+    if (commentsIndex >= 0) return parts[commentsIndex + 1] || '';
+    return parts[parts.length - 1] || '';
+  } catch {
+    return '';
+  }
 }
 
 function findFirstValue(input, keys) {
