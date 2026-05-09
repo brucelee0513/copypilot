@@ -729,10 +729,16 @@ function resetResult() {
             <article v-if="shouldShowImageResult" class="result-block">
               <span>图片素材</span>
               <div class="image-grid">
-                <a v-for="(link, index) in imageLinks" :key="link" :href="link" target="_blank" rel="noreferrer">
-                  <img :src="link" :alt="`图片素材 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
-                  <span>打开图片 {{ index + 1 }}</span>
-                </a>
+                <div v-for="(link, index) in imageLinks" :key="link" class="image-card">
+                  <a :href="link" target="_blank" rel="noreferrer">
+                    <img :src="link" :alt="`图片素材 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
+                  </a>
+                  <div class="image-actions">
+                    <a :href="link" target="_blank" rel="noreferrer">打开</a>
+                    <a :href="`/api/image-proxy?url=${encodeURIComponent(link)}&index=${index + 1}`">下载原图</a>
+                    <button @click="copyText(link)">复制链接</button>
+                  </div>
+                </div>
               </div>
             </article>
           </div>

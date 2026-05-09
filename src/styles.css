@@ -597,15 +597,18 @@ h1 {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
 }
 
-.image-grid a {
+.image-card {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  color: var(--theme);
   display: grid;
   gap: 8px;
   overflow: hidden;
   padding: 8px;
+}
+
+.image-card > a {
+  display: block;
 }
 
 .image-grid img {
@@ -616,10 +619,32 @@ h1 {
   width: 100%;
 }
 
-.image-grid span {
+.image-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.image-actions a,
+.image-actions button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--theme-border);
+  border-radius: 7px;
+  color: var(--theme);
+  display: inline-flex;
   font-size: 13px;
   font-weight: 850;
-  text-align: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.image-actions a:nth-child(2) {
+  background: var(--theme);
+  border-color: var(--theme);
+  color: #fff;
 }
 
 .tag-list {
