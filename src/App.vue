@@ -297,7 +297,8 @@ const resultText = computed(() => {
   return (
     data.transcript ||
     data.text ||
-    stripHtml(detail?.content || detail?.content_html || detail?.html || detail?.article_content || detail?.digest) ||
+    readArticleText(detail) ||
+    stripHtml(detail?.content_html || detail?.html || detail?.article_content || detail?.digest) ||
     detail?.desc ||
     detail?.displayTitle ||
     data.desc ||
@@ -367,7 +368,13 @@ const imageLinks = computed(() => {
   const data = result.value;
   if (!data) return [];
   const detail = primaryDetail.value || data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
-  const images = detail.imageList || detail.images || detail.image_post_info?.images || data.images || [];
+  const images =
+    detail.imageList ||
+    detail.images ||
+    detail.content?.article?.images ||
+    detail.image_post_info?.images ||
+    data.images ||
+    [];
   const links = [];
 
   if (detail.cover?.url_list?.length) links.push(detail.cover.url_list[0]);
@@ -385,7 +392,7 @@ const imageLinks = computed(() => {
 const primaryDetail = computed(() => findPrimaryDetail(result.value));
 const articleHtml = computed(() => {
   const detail = primaryDetail.value || {};
-  return detail.content_html || detail.html || detail.content || detail.article_content || result.value?.html || '';
+  return detail.content_html || detail.html || detail.article_content || result.value?.html || '';
 });
 
 const hasResultContent = computed(() => result.value || videoLinks.value.length || imageLinks.value.length);
@@ -434,7 +441,11 @@ function cleanTopicName(value) {
 
 function pickImageUrl(image) {
   if (!image) return '';
+  if (typeof image === 'string') return image;
   if (image.urlDefault) return image.urlDefault;
+  if (image.src) return image.src;
+  if (image.data_src) return image.data_src;
+  if (image.dataSrc) return image.dataSrc;
   const defaultInfo = image.infoList?.find((item) => item.imageScene === 'WB_DFT');
   if (defaultInfo?.url) return defaultInfo.url;
   if (image.url) return image.url;
@@ -445,7 +456,8 @@ function pickImageUrl(image) {
 }
 
 function stripHtml(value) {
-  return String(value || '')
+  if (!value || typeof value !== 'string') return '';
+  return value
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -457,6 +469,41 @@ function stripHtml(value) {
     .replace(/&gt;/g, '>')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function readArticleText(detail) {
+  const content = detail?.content;
+  if (!content) return '';
+  if (typeof content === 'string') return stripHtml(content);
+
+  const article = content.article || {};
+  const sectionText = Array.isArray(article.sections)
+    ? article.sections
+        .map((section) => [section.title, section.text].filter(Boolean).join('\n'))
+        .filter(Boolean)
+        .join('\n\n')
+    : '';
+  const rawText = Array.isArray(content.raw_content)
+    ? content.raw_content.map(readTextLike).filter(Boolean).join('\n\n')
+    : '';
+
+  return (
+    readTextLike(article.full_text) ||
+    readTextLike(article.summary) ||
+    sectionText ||
+    rawText ||
+    readTextLike(content.text) ||
+    readTextLike(content.summary) ||
+    ''
+  );
+}
+
+function readTextLike(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return stripHtml(value);
+  if (Array.isArray(value)) return value.map(readTextLike).filter(Boolean).join('\n');
+  if (typeof value === 'object') return stripHtml(value.text || value.content || value.value || value.title || '');
+  return String(value);
 }
 
 function extractImageUrls(html) {
@@ -893,3 +940,4 @@ function resetResult() {
     </footer>
   </div>
 </template>
+
