@@ -22,6 +22,7 @@ const currentPath = ref(window.location.pathname);
 const url = ref('');
 const fileMode = ref('video');
 const textMode = ref('link');
+const articleView = ref('text');
 const selectedFile = ref(null);
 const loading = ref(false);
 const error = ref('');
@@ -416,6 +417,58 @@ const copyBlockTitle = computed(() => {
   return '作品文案';
 });
 
+const articleBlocks = computed(() => {
+  if (toolPage.value?.type !== 'article' || !result.value) return [];
+
+  const htmlBlocks = parseArticleHtmlBlocks(articleHtml.value);
+  if (htmlBlocks.length) return htmlBlocks;
+
+  const paragraphs = splitArticleParagraphs(resultText.value).map((text) => ({ type: 'text', text }));
+  const images = imageLinks.value.map((src, index) => ({ type: 'image', src, index }));
+  if (!paragraphs.length) return images;
+  if (!images.length) return paragraphs;
+
+  const blocks = [];
+  const interval = Math.max(1, Math.ceil(paragraphs.length / (images.length + 1)));
+  let imageIndex = 0;
+
+  paragraphs.forEach((paragraph, index) => {
+    blocks.push(paragraph);
+    if ((index + 1) % interval === 0 && imageIndex < images.length) {
+      blocks.push(images[imageIndex]);
+      imageIndex += 1;
+    }
+  });
+
+  while (imageIndex < images.length) {
+    blocks.push(images[imageIndex]);
+    imageIndex += 1;
+  }
+
+  return blocks;
+});
+
+const articleCopyHtml = computed(() => {
+  if (!articleBlocks.value.length) return '';
+  const title = escapeHtml(resultTitle.value || '');
+  const body = articleBlocks.value.map((block) => {
+    if (block.type === 'heading') {
+      return `<h2 style="font-size:18px;line-height:1.6;margin:28px 0 12px;font-weight:700;">${escapeHtml(block.text)}</h2>`;
+    }
+    if (block.type === 'image') {
+      return `<p style="margin:20px 0;text-align:center;"><img src="${escapeHtml(block.src)}" style="max-width:100%;height:auto;" /></p>`;
+    }
+    return `<p style="font-size:16px;line-height:1.9;margin:14px 0;color:#111;">${escapeHtml(block.text).replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+
+  return [
+    '<section style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#111;">',
+    title ? `<h1 style="font-size:22px;line-height:1.5;margin:0 0 22px;font-weight:800;">${title}</h1>` : '',
+    body,
+    '</section>'
+  ].filter(Boolean).join('\n');
+});
+
 function findPrimaryDetail(data) {
   if (!data) return null;
   return (
@@ -570,6 +623,53 @@ function findImageUrlsDeep(input) {
   return urls;
 }
 
+function splitArticleParagraphs(text) {
+  return String(text || '')
+    .split(/\n{2,}|(?<=[。！？!?])\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function parseArticleHtmlBlocks(html) {
+  if (!html || typeof window === 'undefined' || !window.DOMParser) return [];
+  const documentHtml = new DOMParser().parseFromString(html, 'text/html');
+  const nodes = [...documentHtml.body.querySelectorAll('h1,h2,h3,p,section,blockquote,img')];
+  const blocks = [];
+
+  for (const node of nodes) {
+    if (node.tagName === 'IMG') {
+      const src = normalizeMediaUrl(node.getAttribute('data-src') || node.getAttribute('src') || '');
+      if (src) blocks.push({ type: 'image', src, index: blocks.length });
+      continue;
+    }
+
+    const img = node.querySelector?.('img');
+    if (img && node.textContent.trim().length < 8) {
+      const src = normalizeMediaUrl(img.getAttribute('data-src') || img.getAttribute('src') || '');
+      if (src) blocks.push({ type: 'image', src, index: blocks.length });
+      continue;
+    }
+
+    const text = stripHtml(node.innerHTML || node.textContent || '');
+    if (!text || text.length < 2) continue;
+    const type = /^H[1-3]$/.test(node.tagName) ? 'heading' : 'text';
+    if (!blocks.some((block) => block.type === type && block.text === text)) {
+      blocks.push({ type, text });
+    }
+  }
+
+  return blocks.slice(0, 120);
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function navigate(path) {
   window.history.pushState({}, '', path);
   currentPath.value = path;
@@ -578,6 +678,7 @@ function navigate(path) {
   if (path === '/video-extract' || path === '/media-extract') fileMode.value = 'video';
   if (path === '/video-to-text') fileMode.value = 'video';
   if (path === '/text') textMode.value = 'link';
+  if (path === '/article' || path === '/wechat-article') articleView.value = 'text';
   resetResult();
   updateMeta();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -703,10 +804,31 @@ async function copyText(value) {
   notice.value = '文案已复制。';
 }
 
+async function copyArticleHtml() {
+  if (!articleCopyHtml.value) return;
+  const plainText = articleBlocks.value
+    .map((block) => block.type === 'image' ? `[图片] ${block.src}` : block.text)
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (window.ClipboardItem && navigator.clipboard?.write) {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([articleCopyHtml.value], { type: 'text/html' }),
+        'text/plain': new Blob([plainText], { type: 'text/plain' })
+      })
+    ]);
+  } else {
+    await navigator.clipboard.writeText(plainText);
+  }
+  notice.value = '公众号排版已复制，可以粘贴到编辑器。';
+}
+
 function resetResult() {
   error.value = '';
   notice.value = '';
   result.value = null;
+  articleView.value = 'text';
 }
 </script>
 
@@ -856,9 +978,26 @@ function resetResult() {
               <p>{{ resultTitle || '未识别到独立标题' }}</p>
             </article>
 
+            <div v-if="toolPage?.type === 'article'" class="article-mode-switch">
+              <button :class="{ active: articleView === 'text' }" @click="articleView = 'text'">整理正文</button>
+              <button :class="{ active: articleView === 'layout' }" @click="articleView = 'layout'">二创排版</button>
+              <button :disabled="!articleBlocks.length" @click="copyArticleHtml">复制公众号排版</button>
+            </div>
+
             <article class="result-block">
               <span>{{ copyBlockTitle }}</span>
-              <p v-if="resultText" class="result-text">{{ resultText }}</p>
+              <p v-if="resultText && articleView === 'text'" class="result-text">{{ resultText }}</p>
+              <div v-else-if="toolPage?.type === 'article' && articleView === 'layout' && articleBlocks.length" class="article-layout-preview">
+                <h3 v-if="resultTitle">{{ resultTitle }}</h3>
+                <template v-for="(block, index) in articleBlocks" :key="`${block.type}-${index}`">
+                  <h4 v-if="block.type === 'heading'">{{ block.text }}</h4>
+                  <p v-else-if="block.type === 'text'">{{ block.text }}</p>
+                  <figure v-else-if="block.type === 'image'">
+                    <img :src="block.src" :alt="`文章图片 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
+                    <figcaption>图片 {{ index + 1 }}</figcaption>
+                  </figure>
+                </template>
+              </div>
               <p v-else>未识别到文案</p>
             </article>
 
