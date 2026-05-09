@@ -191,6 +191,13 @@ a {
   color: var(--theme);
 }
 
+.header-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.language-button,
 .login-button,
 .primary-button,
 .secondary-button,
@@ -203,6 +210,7 @@ a {
   justify-content: center;
 }
 
+.language-button,
 .login-button,
 .secondary-button,
 .icon-button {
@@ -211,11 +219,16 @@ a {
   color: #243044;
 }
 
+.language-button,
 .login-button,
 .primary-button,
 .secondary-button {
   min-height: 44px;
   padding: 0 18px;
+}
+
+.language-button {
+  min-width: 58px;
 }
 
 .primary-button {
@@ -823,12 +836,31 @@ h1 {
   background: #fff;
 }
 
-.seo-link-grid {
+.seo-group-grid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 auto;
   max-width: 1120px;
+}
+
+.seo-group {
+  background: #fff;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.seo-group h3 {
+  color: #111827;
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+
+.seo-link-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .seo-link-grid a {
@@ -840,8 +872,9 @@ h1 {
   display: flex;
   font-weight: 900;
   justify-content: center;
-  min-height: 58px;
-  padding: 14px;
+  min-height: 52px;
+  padding: 12px;
+  text-align: center;
 }
 
 .legal-hero {
@@ -939,7 +972,7 @@ h1 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .seo-link-grid,
+  .seo-group-grid,
   .footer-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -977,9 +1010,14 @@ h1 {
   .feature-grid,
   .footer-links,
   .mode-switch,
+  .seo-group-grid,
   .seo-link-grid,
   .steps-grid {
     grid-template-columns: 1fr;
+  }
+
+  .header-actions {
+    gap: 8px;
   }
 
   .login-button {

@@ -19,6 +19,7 @@ import {
 
 const siteName = 'CopyPilot';
 const currentPath = ref(window.location.pathname);
+const lang = ref(localStorage.getItem('copypilot-lang') || 'zh');
 const url = ref('');
 const fileMode = ref('video');
 const textMode = ref('link');
@@ -147,6 +148,86 @@ const pageMap = {
     theme: 'cyan',
     seoTitle: 'TikTok 视频提取工具 - 在线提取 TikTok 视频和文案'
   },
+  '/kuaishou-video-download': {
+    badge: '快手视频提取',
+    title: '快手视频提取工具',
+    subtitle: '粘贴快手作品链接，提取视频素材、标题、发布文案和话题标签。',
+    type: 'video',
+    theme: 'cyan',
+    seoTitle: '快手视频提取工具 - 在线提取快手视频和文案'
+  },
+  '/bilibili-video-download': {
+    badge: 'B站视频提取',
+    title: 'B站视频提取工具',
+    subtitle: '粘贴 Bilibili 视频链接，整理视频素材、标题、简介和基础信息。',
+    type: 'video',
+    theme: 'cyan',
+    seoTitle: 'B站视频提取工具 - 在线提取 Bilibili 视频和文案'
+  },
+  '/youtube-video-download': {
+    badge: 'YouTube视频提取',
+    title: 'YouTube 视频提取工具',
+    subtitle: '粘贴 YouTube 视频链接，提取视频素材、标题、简介和标签信息。',
+    type: 'video',
+    theme: 'cyan',
+    seoTitle: 'YouTube 视频提取工具 - 在线提取 YouTube 视频信息'
+  },
+  '/weibo-video-download': {
+    badge: '微博视频提取',
+    title: '微博视频提取工具',
+    subtitle: '粘贴微博视频链接，提取视频素材、正文和话题标签。',
+    type: 'video',
+    theme: 'cyan',
+    seoTitle: '微博视频提取工具 - 在线提取微博视频和文案'
+  },
+  '/instagram-video-download': {
+    badge: 'Instagram视频提取',
+    title: 'Instagram 视频提取工具',
+    subtitle: '粘贴 Instagram Reels 或帖子链接，整理视频素材、说明文字和标签。',
+    type: 'video',
+    theme: 'cyan',
+    seoTitle: 'Instagram 视频提取工具 - 在线提取 Instagram Reels'
+  },
+  '/instagram-image-download': {
+    badge: 'Instagram图文提取',
+    title: 'Instagram 图文图片提取工具',
+    subtitle: '粘贴 Instagram 帖子链接，提取图片素材、说明文字和标签。',
+    type: 'image',
+    theme: 'pink',
+    seoTitle: 'Instagram 图文图片提取工具 - 在线提取 Instagram 图片'
+  },
+  '/lemon8-image-download': {
+    badge: 'Lemon8图文提取',
+    title: 'Lemon8 图文图片提取工具',
+    subtitle: '粘贴 Lemon8 图文链接，提取图片素材、标题、正文和标签。',
+    type: 'image',
+    theme: 'pink',
+    seoTitle: 'Lemon8 图文图片提取工具 - 在线提取 Lemon8 图片和文案'
+  },
+  '/weibo-image-download': {
+    badge: '微博图文提取',
+    title: '微博图文图片提取工具',
+    subtitle: '粘贴微博图文链接，提取图片素材、正文和话题标签。',
+    type: 'image',
+    theme: 'pink',
+    seoTitle: '微博图文图片提取工具 - 在线提取微博图片和文案'
+  },
+  '/zhihu-article': {
+    badge: '知乎文章提取',
+    title: '知乎文章提取工具',
+    subtitle: '粘贴知乎文章或回答链接，提取标题、正文、图片和基础信息。',
+    type: 'article',
+    theme: 'green',
+    seoTitle: '知乎文章提取工具 - 在线提取知乎正文和图片'
+  },
+  '/web-article': {
+    badge: '网页文章提取',
+    title: '网页文章提取工具',
+    subtitle: '粘贴网页文章链接，提取文章标题、正文、图片和基础信息。',
+    type: 'article',
+    theme: 'green',
+    seoTitle: '网页文章提取工具 - 在线提取网页正文和图片'
+  },
   '/video-to-text': {
     badge: '视频转文字',
     title: '视频转文字工具',
@@ -162,6 +243,22 @@ const pageMap = {
     type: 'media-file',
     theme: 'indigo',
     seoTitle: '音频转文字工具 - 在线音频转文案'
+  },
+  '/local-video-to-text': {
+    badge: '本地视频转文字',
+    title: '本地视频提取文案工具',
+    subtitle: '上传本地视频文件，识别视频语音并整理成可复制文字稿。',
+    type: 'media-file',
+    theme: 'indigo',
+    seoTitle: '本地视频提取文案工具 - 视频语音转文字'
+  },
+  '/local-audio-to-text': {
+    badge: '本地音频转文字',
+    title: '本地音频提取文案工具',
+    subtitle: '上传本地音频文件，识别音频语音并整理成可复制文字稿。',
+    type: 'media-file',
+    theme: 'indigo',
+    seoTitle: '本地音频提取文案工具 - 音频语音转文字'
   },
   '/privacy': {
     badge: '隐私政策',
@@ -193,7 +290,102 @@ const pageMap = {
   }
 };
 
-const toolPage = computed(() => pageMap[currentPath.value]);
+const enPageMap = {
+  '/video': { badge: 'Video extractor', title: 'Video Download Tool', subtitle: 'Paste a post link to extract video files for saving, editing, and content archiving.' },
+  '/text': { badge: 'Text extractor', title: 'Caption & Transcript Tool', subtitle: 'Extract post captions from links, or upload local audio/video files for speech-to-text.' },
+  '/image-text': { badge: 'Image post extractor', title: 'Image & Caption Extractor', subtitle: 'Extract images, titles, captions, and tags from image posts.' },
+  '/article': { badge: 'Article extractor', title: 'Article Extraction Tool', subtitle: 'Extract article titles, body text, original images, and basic metadata from article links.' },
+  '/wechat-article': { badge: 'WeChat article extractor', title: 'WeChat Article Extractor', subtitle: 'Paste a WeChat article link to extract title, body text, original images, and metadata.' },
+  '/douyin-video-download': { badge: 'Douyin video download', title: 'Douyin Video Downloader', subtitle: 'Extract Douyin video previews, download links, titles, captions, and hashtags.' },
+  '/tiktok-video-download': { badge: 'TikTok video download', title: 'TikTok Video Downloader', subtitle: 'Extract TikTok videos, captions, post text, and tags for content workflows.' },
+  '/kuaishou-video-download': { badge: 'Kuaishou video download', title: 'Kuaishou Video Downloader', subtitle: 'Extract Kuaishou videos, titles, captions, and hashtags from shared links.' },
+  '/bilibili-video-download': { badge: 'Bilibili video download', title: 'Bilibili Video Downloader', subtitle: 'Extract Bilibili video assets, titles, descriptions, and basic metadata.' },
+  '/youtube-video-download': { badge: 'YouTube video download', title: 'YouTube Video Downloader', subtitle: 'Extract YouTube video assets, titles, descriptions, and tags.' },
+  '/weibo-video-download': { badge: 'Weibo video download', title: 'Weibo Video Downloader', subtitle: 'Extract Weibo videos, post text, and hashtags.' },
+  '/instagram-video-download': { badge: 'Instagram video download', title: 'Instagram Video Downloader', subtitle: 'Extract Instagram Reels or post videos, captions, and tags.' },
+  '/xiaohongshu-image-download': { badge: 'Xiaohongshu image extractor', title: 'Xiaohongshu Image Extractor', subtitle: 'Extract images, titles, captions, and hashtags from Xiaohongshu notes.' },
+  '/instagram-image-download': { badge: 'Instagram image extractor', title: 'Instagram Image Extractor', subtitle: 'Extract Instagram post images, captions, and tags.' },
+  '/lemon8-image-download': { badge: 'Lemon8 image extractor', title: 'Lemon8 Image Extractor', subtitle: 'Extract Lemon8 post images, titles, captions, and tags.' },
+  '/weibo-image-download': { badge: 'Weibo image extractor', title: 'Weibo Image Extractor', subtitle: 'Extract Weibo post images, text, and hashtags.' },
+  '/zhihu-article': { badge: 'Zhihu article extractor', title: 'Zhihu Article Extractor', subtitle: 'Extract Zhihu article titles, body text, images, and metadata.' },
+  '/web-article': { badge: 'Web article extractor', title: 'Web Article Extractor', subtitle: 'Extract article titles, body text, images, and metadata from web pages.' },
+  '/video-to-text': { badge: 'Video to text', title: 'Video to Text Tool', subtitle: 'Upload a local video file and convert spoken content into copyable text.' },
+  '/audio-to-text': { badge: 'Audio to text', title: 'Audio to Text Tool', subtitle: 'Upload a local audio file and convert speech into copyable text.' },
+  '/local-video-to-text': { badge: 'Local video to text', title: 'Local Video Transcript Tool', subtitle: 'Upload local videos and extract speech as editable text.' },
+  '/local-audio-to-text': { badge: 'Local audio to text', title: 'Local Audio Transcript Tool', subtitle: 'Upload local audio and extract speech as editable text.' }
+};
+
+const uiText = computed(() => {
+  const zh = {
+    nav: ['首页', '提取视频', '提取文案', '提取图文', '提取文章'],
+    login: '登录',
+    heroBadge: '免费在线视频文案提取',
+    heroTitle: '支持50+平台 视频和文案提取工具',
+    heroSubtitle: '一键提取视频文案、视频转音频MP3、视频提取，图片提取。支持抖音、小红书等50+平台，AI智能识别，批量下载，免费使用。',
+    linkText: '链接提取文案',
+    localText: '本地音视频提取文案',
+    start: '开始提取',
+    loading: '提取中...',
+    paste: '粘贴',
+    clear: '清空',
+    placeholders: {
+      video: '粘贴作品链接，提取视频文件',
+      image: '粘贴图文作品链接，提取图片、标题、文案和Tag',
+      article: '粘贴公众号文章或网页文章链接',
+      text: '粘贴作品链接，提取文案、标题和Tag'
+    },
+    featureEyebrow: '强大功能',
+    featureTitle: '不只是复制链接，而是把内容整理成可用素材',
+    stepsEyebrow: '使用步骤',
+    stepsTitle: '三步完成视频和文案提取',
+    faqEyebrow: '常见问题答疑',
+    faqTitle: '你可能想知道的问题',
+    seoEyebrow: '热门工具',
+    seoTitle: '按平台和场景快速提取内容',
+    footerDesc: '支持50+平台的视频、图文、文章和文案提取工具。',
+    core: '核心功能',
+    hot: '热门工具',
+    info: '基础信息'
+  };
+  const en = {
+    nav: ['Home', 'Video', 'Text', 'Images', 'Articles'],
+    login: 'Sign in',
+    heroBadge: 'Free online content extractor',
+    heroTitle: 'Extract videos, captions, images, and articles from 50+ platforms',
+    heroSubtitle: 'Paste a link to extract video captions, MP3/audio, downloadable videos, images, and post metadata. Supports Douyin, Xiaohongshu, TikTok, and more.',
+    linkText: 'Extract from link',
+    localText: 'Upload audio/video',
+    start: 'Extract',
+    loading: 'Extracting...',
+    paste: 'Paste',
+    clear: 'Clear',
+    placeholders: {
+      video: 'Paste a post link to extract video files',
+      image: 'Paste an image post link to extract images, title, caption, and tags',
+      article: 'Paste a WeChat article or web article link',
+      text: 'Paste a post link to extract caption, title, and tags'
+    },
+    featureEyebrow: 'Features',
+    featureTitle: 'Turn links into reusable content assets',
+    stepsEyebrow: 'How it works',
+    stepsTitle: 'Extract content in three steps',
+    faqEyebrow: 'FAQ',
+    faqTitle: 'Common questions',
+    seoEyebrow: 'Popular tools',
+    seoTitle: 'Find tools by platform and workflow',
+    footerDesc: 'A video, image, article, and caption extraction tool for 50+ platforms.',
+    core: 'Core',
+    hot: 'Popular tools',
+    info: 'Info'
+  };
+  return lang.value === 'en' ? en : zh;
+});
+
+const toolPage = computed(() => {
+  const page = pageMap[currentPath.value];
+  if (!page || lang.value !== 'en') return page;
+  return { ...page, ...enPageMap[currentPath.value] };
+});
 const isHome = computed(() => !toolPage.value);
 const pageTheme = computed(() => toolPage.value?.theme || 'blue');
 const isLegalPage = computed(() => toolPage.value?.type === 'legal');
@@ -202,41 +394,119 @@ const fileAccept = computed(() => (fileMode.value === 'audio' ? 'audio/*' : 'vid
 const fileLabel = computed(() => (fileMode.value === 'audio' ? '选择音频文件' : '选择视频文件'));
 const isLinkInputPage = computed(() => !isFilePage.value);
 
-const featureCards = [
-  { title: '50+平台支持', text: '覆盖抖音、小红书、TikTok、快手等主流内容平台。', icon: BadgeCheck },
-  { title: '视频文案提取', text: '自动整理视频标题、正文、作者信息和素材链接。', icon: Captions },
-  { title: '图片内容提取', text: '适合图文笔记、电商素材和内容拆解。', icon: Image },
-  { title: 'AI智能识别', text: '自动识别链接类型，减少手动选择和复制整理。', icon: Sparkles }
-];
+const featureCards = computed(() => lang.value === 'en'
+  ? [
+      { title: '50+ platforms', text: 'Supports Douyin, Xiaohongshu, TikTok, Kuaishou, and more content platforms.', icon: BadgeCheck },
+      { title: 'Caption extraction', text: 'Collect titles, captions, author details, and media links automatically.', icon: Captions },
+      { title: 'Image extraction', text: 'Useful for image posts, ecommerce assets, and content breakdowns.', icon: Image },
+      { title: 'Smart routing', text: 'Detects link types and routes them to the right extraction workflow.', icon: Sparkles }
+    ]
+  : [
+      { title: '50+平台支持', text: '覆盖抖音、小红书、TikTok、快手等主流内容平台。', icon: BadgeCheck },
+      { title: '视频文案提取', text: '自动整理视频标题、正文、作者信息和素材链接。', icon: Captions },
+      { title: '图片内容提取', text: '适合图文笔记、电商素材和内容拆解。', icon: Image },
+      { title: 'AI智能识别', text: '自动识别链接类型，减少手动选择和复制整理。', icon: Sparkles }
+    ]);
 
-const steps = [
-  ['复制链接', '从抖音、小红书等平台复制作品分享链接。'],
-  ['粘贴提取', '把链接粘贴到输入框，点击开始提取。'],
-  ['复制结果', '获取文案、图片或视频素材链接，继续整理使用。']
-];
+const steps = computed(() => lang.value === 'en'
+  ? [
+      ['Copy a link', 'Copy a shared post or article link from a supported platform.'],
+      ['Paste and extract', 'Paste the link into CopyPilot and start extraction.'],
+      ['Use the result', 'Copy captions, download images, preview videos, or reuse article layouts.']
+    ]
+  : [
+      ['复制链接', '从抖音、小红书等平台复制作品分享链接。'],
+      ['粘贴提取', '把链接粘贴到输入框，点击开始提取。'],
+      ['复制结果', '获取文案、图片或视频素材链接，继续整理使用。']
+    ]);
 
-const faqs = [
-  ['CopyPilot 免费吗？', '基础提取功能面向用户免费开放，高频、批量和高级能力后续可做会员权益。'],
-  ['支持哪些平台？', '首页主打 50+ 平台，第一阶段优先打通抖音、小红书、TikTok 等常用平台。'],
-  ['为什么有些链接提取失败？', '私密作品、删除作品、平台限制或链接过期，都可能导致失败。'],
-  ['提取内容可以商用吗？', '工具只负责内容整理，素材版权和平台规则需要由使用者自行确认。']
-];
+const faqs = computed(() => lang.value === 'en'
+  ? [
+      ['Is CopyPilot free?', 'Core extraction features can be offered for free, while high-volume, batch, and advanced AI workflows can become paid plans later.'],
+      ['Which platforms are supported?', 'The site targets 50+ platforms and currently prioritizes common video, image, and article workflows.'],
+      ['Why do some links fail?', 'Private posts, deleted content, expired links, platform restrictions, or missing permissions can cause failures.'],
+      ['Can I use extracted content commercially?', 'CopyPilot organizes content. Copyright, licensing, and platform compliance remain the user’s responsibility.']
+    ]
+  : [
+      ['CopyPilot 免费吗？', '基础提取功能面向用户免费开放，高频、批量和高级能力后续可做会员权益。'],
+      ['支持哪些平台？', '首页主打 50+ 平台，优先覆盖抖音、小红书、TikTok、快手、B站、YouTube、Instagram、微博、公众号等常用场景。'],
+      ['为什么有些链接提取失败？', '私密作品、删除作品、平台限制、链接过期或接口暂不支持，都可能导致失败。'],
+      ['提取内容可以商用吗？', '工具只负责内容整理，素材版权和平台规则需要由使用者自行确认。']
+    ]);
 
-const seoToolLinks = [
-  ['/douyin-video-download', '抖音视频提取'],
-  ['/xiaohongshu-image-download', '小红书图文提取'],
-  ['/wechat-article', '公众号文章提取'],
-  ['/tiktok-video-download', 'TikTok 视频提取'],
-  ['/video-to-text', '视频转文字'],
-  ['/audio-to-text', '音频转文字']
-];
+const seoToolGroups = computed(() => lang.value === 'en'
+  ? [
+      { title: 'Video platforms', links: [
+        ['/douyin-video-download', 'Douyin video downloader'],
+        ['/tiktok-video-download', 'TikTok video downloader'],
+        ['/kuaishou-video-download', 'Kuaishou video downloader'],
+        ['/bilibili-video-download', 'Bilibili video downloader'],
+        ['/youtube-video-download', 'YouTube video downloader'],
+        ['/weibo-video-download', 'Weibo video downloader'],
+        ['/instagram-video-download', 'Instagram video downloader']
+      ] },
+      { title: 'Image platforms', links: [
+        ['/xiaohongshu-image-download', 'Xiaohongshu image extractor'],
+        ['/instagram-image-download', 'Instagram image extractor'],
+        ['/lemon8-image-download', 'Lemon8 image extractor'],
+        ['/weibo-image-download', 'Weibo image extractor']
+      ] },
+      { title: 'Article platforms', links: [
+        ['/wechat-article', 'WeChat article extractor'],
+        ['/zhihu-article', 'Zhihu article extractor'],
+        ['/web-article', 'Web article extractor']
+      ] },
+      { title: 'Speech to text', links: [
+        ['/video-to-text', 'Video to text'],
+        ['/audio-to-text', 'Audio to text'],
+        ['/local-video-to-text', 'Local video transcript'],
+        ['/local-audio-to-text', 'Local audio transcript']
+      ] }
+    ]
+  : [
+      { title: '视频平台', links: [
+        ['/douyin-video-download', '抖音视频提取'],
+        ['/tiktok-video-download', 'TikTok 视频提取'],
+        ['/kuaishou-video-download', '快手视频提取'],
+        ['/bilibili-video-download', 'B站视频提取'],
+        ['/youtube-video-download', 'YouTube 视频提取'],
+        ['/weibo-video-download', '微博视频提取'],
+        ['/instagram-video-download', 'Instagram 视频提取']
+      ] },
+      { title: '图文平台', links: [
+        ['/xiaohongshu-image-download', '小红书图文提取'],
+        ['/instagram-image-download', 'Instagram 图文提取'],
+        ['/lemon8-image-download', 'Lemon8 图文提取'],
+        ['/weibo-image-download', '微博图文提取']
+      ] },
+      { title: '文章平台', links: [
+        ['/wechat-article', '公众号文章提取'],
+        ['/zhihu-article', '知乎文章提取'],
+        ['/web-article', '网页文章提取']
+      ] },
+      { title: '转文字工具', links: [
+        ['/video-to-text', '视频转文字'],
+        ['/audio-to-text', '音频转文字'],
+        ['/local-video-to-text', '本地视频提取文案'],
+        ['/local-audio-to-text', '本地音频提取文案']
+      ] }
+    ]);
 
-const legalLinks = [
-  ['/privacy', '隐私政策'],
-  ['/terms', '服务条款'],
-  ['/copyright', '版权说明'],
-  ['/contact', '联系我们']
-];
+const seoToolLinks = computed(() => seoToolGroups.value.flatMap((group) => group.links));
+
+const legalLinks = computed(() => lang.value === 'en'
+  ? [
+      ['/privacy', 'Privacy'],
+      ['/terms', 'Terms'],
+      ['/copyright', 'Copyright'],
+      ['/contact', 'Contact']
+    ]
+  : [
+      ['/privacy', '隐私政策'],
+      ['/terms', '服务条款'],
+      ['/copyright', '版权说明'],
+      ['/contact', '联系我们']
+    ]);
 
 const legalContent = computed(() => {
   const map = {
@@ -675,13 +945,21 @@ function navigate(path) {
   currentPath.value = path;
   if (path === '/audio-extract') fileMode.value = 'audio';
   if (path === '/audio-to-text') fileMode.value = 'audio';
+  if (path === '/local-audio-to-text') fileMode.value = 'audio';
   if (path === '/video-extract' || path === '/media-extract') fileMode.value = 'video';
   if (path === '/video-to-text') fileMode.value = 'video';
+  if (path === '/local-video-to-text') fileMode.value = 'video';
   if (path === '/text') textMode.value = 'link';
   if (path === '/article' || path === '/wechat-article') articleView.value = 'text';
   resetResult();
   updateMeta();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleLang() {
+  lang.value = lang.value === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('copypilot-lang', lang.value);
+  updateMeta();
 }
 
 window.onpopstate = () => {
@@ -691,8 +969,11 @@ window.onpopstate = () => {
 
 function updateMeta() {
   const page = pageMap[currentPath.value];
-  const title = page?.seoTitle || page?.title || '支持50+平台 视频和文案提取工具';
-  const description = page?.subtitle || '一键提取视频文案、视频转音频MP3、视频提取、图片提取，支持抖音、小红书等50+平台。';
+  const activePage = toolPage.value || page;
+  const title = lang.value === 'en'
+    ? activePage?.title || uiText.value.heroTitle
+    : activePage?.seoTitle || activePage?.title || uiText.value.heroTitle;
+  const description = activePage?.subtitle || uiText.value.heroSubtitle;
   document.title = `${title} | ${siteName}`;
   let meta = document.querySelector('meta[name="description"]');
   if (!meta) {
@@ -840,13 +1121,16 @@ function resetResult() {
         <strong>{{ siteName }}</strong>
       </a>
       <nav class="desktop-nav" aria-label="主导航">
-        <a href="/" @click.prevent="navigate('/')">首页</a>
-        <a href="/video" @click.prevent="navigate('/video')">提取视频</a>
-        <a href="/text" @click.prevent="navigate('/text')">提取文案</a>
-        <a href="/image-text" @click.prevent="navigate('/image-text')">提取图文</a>
-        <a href="/article" @click.prevent="navigate('/article')">提取文章</a>
+        <a href="/" @click.prevent="navigate('/')">{{ uiText.nav[0] }}</a>
+        <a href="/video" @click.prevent="navigate('/video')">{{ uiText.nav[1] }}</a>
+        <a href="/text" @click.prevent="navigate('/text')">{{ uiText.nav[2] }}</a>
+        <a href="/image-text" @click.prevent="navigate('/image-text')">{{ uiText.nav[3] }}</a>
+        <a href="/article" @click.prevent="navigate('/article')">{{ uiText.nav[4] }}</a>
       </nav>
-      <button class="login-button">登录</button>
+      <div class="header-actions">
+        <button class="language-button" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中文' }}</button>
+        <button class="login-button">{{ uiText.login }}</button>
+      </div>
     </header>
 
     <main>
@@ -876,22 +1160,19 @@ function resetResult() {
             "
             :size="18"
           />
-          {{ toolPage?.badge || '免费在线视频文案提取' }}
+          {{ toolPage?.badge || uiText.heroBadge }}
         </p>
-        <h1>{{ toolPage?.title || '支持50+平台 视频和文案提取工具' }}</h1>
+        <h1>{{ toolPage?.title || uiText.heroTitle }}</h1>
         <p class="subtitle">
-          {{
-            toolPage?.subtitle ||
-            '一键提取视频文案、视频转音频MP3、视频提取，图片提取。支持抖音、小红书等50+平台，AI智能识别，批量下载，免费使用。'
-          }}
+          {{ toolPage?.subtitle || uiText.heroSubtitle }}
         </p>
 
         <div v-if="toolPage?.type === 'text'" class="mode-switch">
           <button :class="{ active: textMode === 'link' }" @click="textMode = 'link'">
-            <Link :size="17" /> 链接提取文案
+            <Link :size="17" /> {{ uiText.linkText }}
           </button>
           <button :class="{ active: textMode === 'file' }" @click="textMode = 'file'">
-            <FileAudio :size="17" /> 本地音视频提取文案
+            <FileAudio :size="17" /> {{ uiText.localText }}
           </button>
         </div>
 
@@ -900,22 +1181,22 @@ function resetResult() {
             v-model="url"
             :placeholder="
               toolPage?.type === 'video'
-                ? '粘贴作品链接，提取视频文件'
+                ? uiText.placeholders.video
                 : toolPage?.type === 'image'
-                  ? '粘贴图文作品链接，提取图片、标题、文案和Tag'
+                  ? uiText.placeholders.image
                   : toolPage?.type === 'article'
-                    ? '粘贴公众号文章或网页文章链接'
-                    : '粘贴作品链接，提取文案、标题和Tag'
+                    ? uiText.placeholders.article
+                    : uiText.placeholders.text
             "
           />
           <div class="button-row">
             <button class="primary-button" :disabled="loading" @click="extract">
               <Loader2 v-if="loading" class="spin" :size="18" />
               <Link v-else :size="18" />
-              {{ loading ? '提取中...' : '开始提取' }}
+              {{ loading ? uiText.loading : uiText.start }}
             </button>
-            <button class="secondary-button" @click="paste"><Clipboard :size="18" /> 粘贴</button>
-            <button class="secondary-button" @click="clearInput">清空</button>
+            <button class="secondary-button" @click="paste"><Clipboard :size="18" /> {{ uiText.paste }}</button>
+            <button class="secondary-button" @click="clearInput">{{ uiText.clear }}</button>
           </div>
           <p v-if="error" class="alert error">{{ error }}</p>
           <p v-if="notice" class="alert success">{{ notice }}</p>
@@ -955,10 +1236,10 @@ function resetResult() {
         </section>
 
         <div v-if="isHome" class="home-type-tags">
-          <button @click="navigate('/video')"><FileVideo :size="17" /> 提取视频</button>
-          <button @click="navigate('/text')"><Captions :size="17" /> 提取文案</button>
-          <button @click="navigate('/image-text')"><Image :size="17" /> 提取图文</button>
-          <button @click="navigate('/article')"><FileText :size="17" /> 提取文章</button>
+          <button @click="navigate('/video')"><FileVideo :size="17" /> {{ uiText.nav[1] }}</button>
+          <button @click="navigate('/text')"><Captions :size="17" /> {{ uiText.nav[2] }}</button>
+          <button @click="navigate('/image-text')"><Image :size="17" /> {{ uiText.nav[3] }}</button>
+          <button @click="navigate('/article')"><FileText :size="17" /> {{ uiText.nav[4] }}</button>
         </div>
       </section>
 
@@ -1052,8 +1333,8 @@ function resetResult() {
 
       <section v-if="!isLegalPage" id="features" class="section">
         <div class="section-title center">
-          <p class="eyebrow"><Sparkles :size="18" /> 强大功能</p>
-          <h2>不只是复制链接，而是把内容整理成可用素材</h2>
+          <p class="eyebrow"><Sparkles :size="18" /> {{ uiText.featureEyebrow }}</p>
+          <h2>{{ uiText.featureTitle }}</h2>
         </div>
         <div class="feature-grid">
           <article v-for="card in featureCards" :key="card.title">
@@ -1066,8 +1347,8 @@ function resetResult() {
 
       <section v-if="!isLegalPage" id="steps" class="section steps-section">
         <div class="section-title center">
-          <p class="eyebrow"><Check :size="18" /> 使用步骤</p>
-          <h2>三步完成视频和文案提取</h2>
+          <p class="eyebrow"><Check :size="18" /> {{ uiText.stepsEyebrow }}</p>
+          <h2>{{ uiText.stepsTitle }}</h2>
         </div>
         <div class="steps-grid">
           <article v-for="([title, text], index) in steps" :key="title">
@@ -1080,8 +1361,8 @@ function resetResult() {
 
       <section v-if="!isLegalPage" id="faq" class="section">
         <div class="section-title center">
-          <p class="eyebrow"><Wand2 :size="18" /> 常见问题答疑</p>
-          <h2>你可能想知道的问题</h2>
+          <p class="eyebrow"><Wand2 :size="18" /> {{ uiText.faqEyebrow }}</p>
+          <h2>{{ uiText.faqTitle }}</h2>
         </div>
         <div class="faq-list">
           <article v-for="[question, answer] in faqs" :key="question">
@@ -1093,13 +1374,18 @@ function resetResult() {
 
       <section v-if="!isLegalPage" class="section seo-section">
         <div class="section-title center">
-          <p class="eyebrow"><Sparkles :size="18" /> 热门工具</p>
-          <h2>按常用场景快速提取内容</h2>
+          <p class="eyebrow"><Sparkles :size="18" /> {{ uiText.seoEyebrow }}</p>
+          <h2>{{ uiText.seoTitle }}</h2>
         </div>
-        <div class="seo-link-grid">
-          <a v-for="[path, label] in seoToolLinks" :key="path" :href="path" @click.prevent="navigate(path)">
-            {{ label }}
-          </a>
+        <div class="seo-group-grid">
+          <article v-for="group in seoToolGroups" :key="group.title" class="seo-group">
+            <h3>{{ group.title }}</h3>
+            <div class="seo-link-grid">
+              <a v-for="[path, label] in group.links" :key="path" :href="path" @click.prevent="navigate(path)">
+                {{ label }}
+              </a>
+            </div>
+          </article>
         </div>
       </section>
     </main>
@@ -1107,25 +1393,25 @@ function resetResult() {
     <footer class="site-footer">
       <div>
         <strong>{{ siteName }}</strong>
-        <p>支持50+平台的视频和文案提取工具。</p>
+        <p>{{ uiText.footerDesc }}</p>
       </div>
       <div class="footer-links">
         <nav>
-          <strong>核心功能</strong>
-          <a href="/" @click.prevent="navigate('/')">首页</a>
-          <a href="/video" @click.prevent="navigate('/video')">提取视频</a>
-          <a href="/text" @click.prevent="navigate('/text')">提取文案</a>
-          <a href="/image-text" @click.prevent="navigate('/image-text')">提取图文</a>
-          <a href="/article" @click.prevent="navigate('/article')">提取文章</a>
+          <strong>{{ uiText.core }}</strong>
+          <a href="/" @click.prevent="navigate('/')">{{ uiText.nav[0] }}</a>
+          <a href="/video" @click.prevent="navigate('/video')">{{ uiText.nav[1] }}</a>
+          <a href="/text" @click.prevent="navigate('/text')">{{ uiText.nav[2] }}</a>
+          <a href="/image-text" @click.prevent="navigate('/image-text')">{{ uiText.nav[3] }}</a>
+          <a href="/article" @click.prevent="navigate('/article')">{{ uiText.nav[4] }}</a>
         </nav>
         <nav>
-          <strong>热门工具</strong>
+          <strong>{{ uiText.hot }}</strong>
           <a v-for="[path, label] in seoToolLinks" :key="path" :href="path" @click.prevent="navigate(path)">
             {{ label }}
           </a>
         </nav>
         <nav>
-          <strong>基础信息</strong>
+          <strong>{{ uiText.info }}</strong>
           <a v-for="[path, label] in legalLinks" :key="path" :href="path" @click.prevent="navigate(path)">
             {{ label }}
           </a>
