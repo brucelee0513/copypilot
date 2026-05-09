@@ -294,6 +294,16 @@ const resultText = computed(() => {
   const data = result.value;
   const detail = primaryDetail.value;
   if (!data) return '';
+
+  if (toolPage.value?.type === 'article') {
+    return (
+      readArticleText(detail) ||
+      stripHtml(detail?.content_html || detail?.html || detail?.article_content || detail?.digest) ||
+      stripHtml(data.full_text || data.article_content || data.content_html || data.html || data.text || '') ||
+      ''
+    );
+  }
+
   return (
     data.transcript ||
     data.text ||
@@ -385,6 +395,7 @@ const imageLinks = computed(() => {
     const bestImage = pickImageUrl(image);
     if (bestImage) links.push(bestImage);
   }
+  links.push(...findImageUrlsDeep(detail.content));
   links.push(...extractImageUrls(articleHtml.value));
   return [...new Set(links.map(normalizeMediaUrl).filter(Boolean))].slice(0, 8);
 });
@@ -477,25 +488,33 @@ function readArticleText(detail) {
   if (typeof content === 'string') return stripHtml(content);
 
   const article = content.article || {};
+  const candidates = [];
+
+  candidates.push(readTextLike(article.full_text));
+  candidates.push(readTextLike(article.summary));
+
   const sectionText = Array.isArray(article.sections)
     ? article.sections
         .map((section) => [section.title, section.text].filter(Boolean).join('\n'))
         .filter(Boolean)
         .join('\n\n')
     : '';
+  candidates.push(sectionText);
+
   const rawText = Array.isArray(content.raw_content)
     ? content.raw_content.map(readTextLike).filter(Boolean).join('\n\n')
     : '';
+  candidates.push(rawText);
+  candidates.push(readTextLike(content.full_text));
+  candidates.push(readTextLike(content.text));
+  candidates.push(readTextLike(content.summary));
+  candidates.push(readTextLike(detail.full_text));
+  candidates.push(readTextLike(detail.article_content));
 
-  return (
-    readTextLike(article.full_text) ||
-    readTextLike(article.summary) ||
-    sectionText ||
-    rawText ||
-    readTextLike(content.text) ||
-    readTextLike(content.summary) ||
-    ''
-  );
+  return candidates
+    .map((item) => normalizeArticleText(item))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)[0] || '';
 }
 
 function readTextLike(value) {
@@ -512,6 +531,42 @@ function extractImageUrls(html) {
   for (const match of text.matchAll(/<img[^>]+(?:data-src|src)=["']([^"']+)["']/gi)) {
     urls.push(match[1]);
   }
+  return urls;
+}
+
+function normalizeArticleText(value) {
+  return String(value || '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function findImageUrlsDeep(input) {
+  const urls = [];
+  const seen = new Set();
+  const queue = [input];
+
+  while (queue.length) {
+    const item = queue.shift();
+    if (!item || seen.has(item)) continue;
+
+    if (typeof item === 'string') {
+      if (/^https?:\/\/.+\.(?:jpe?g|png|webp|gif)(?:[?#].*)?$/i.test(item) || /mmbiz|qpic|wx_fmt|xhscdn|rednote/i.test(item)) {
+        urls.push(item);
+      }
+      continue;
+    }
+
+    if (typeof item !== 'object') continue;
+    seen.add(item);
+
+    const picked = pickImageUrl(item);
+    if (picked) urls.push(picked);
+    for (const value of Object.values(item)) {
+      if (value && (typeof value === 'object' || typeof value === 'string')) queue.push(value);
+    }
+  }
+
   return urls;
 }
 
