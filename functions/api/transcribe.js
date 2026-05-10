@@ -1,4 +1,5 @@
 import { json } from './_tikhub.js';
+import { recordUsage, requireQuota } from './_auth.js';
 
 export async function onRequestPost(context) {
   const apiKey = context.env.SILICONFLOW_API_KEY;
@@ -13,6 +14,9 @@ export async function onRequestPost(context) {
   if (!(file instanceof File)) {
     return json({ ok: false, message: '请先选择音频或视频文件。' }, 400);
   }
+
+  const quota = await requireQuota(context, 'extract');
+  if (!quota.ok) return json({ ok: false, message: quota.message, needLogin: quota.status === 401 }, quota.status);
 
   const upstreamForm = new FormData();
   upstreamForm.set('model', model);
@@ -38,13 +42,20 @@ export async function onRequestPost(context) {
     );
   }
 
+  await recordUsage(context, quota, {
+    action: 'extract',
+    resultTitle: file.name,
+    status: 'completed'
+  });
+  const headers = quota.setCookie ? { 'Set-Cookie': quota.setCookie } : {};
+
   return json({
     ok: true,
     data: {
       title: file.name,
       text: payload.text || payload.data?.text || ''
     }
-  });
+  }, 200, headers);
 }
 
 async function safeJson(response) {

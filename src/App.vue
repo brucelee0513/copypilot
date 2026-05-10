@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   BadgeCheck,
   Captions,
@@ -29,6 +29,15 @@ const loading = ref(false);
 const error = ref('');
 const notice = ref('');
 const result = ref(null);
+const authOpen = ref(false);
+const authLoading = ref(false);
+const authEmail = ref('');
+const authCode = ref('');
+const authMessage = ref('');
+const currentUser = ref(null);
+const usage = ref(null);
+const records = ref([]);
+const devCode = ref('');
 
 const pageMap = {
   '/video': {
@@ -393,6 +402,7 @@ const isFilePage = computed(() => toolPage.value?.type === 'media-file' || (tool
 const fileAccept = computed(() => (fileMode.value === 'audio' ? 'audio/*' : 'video/*'));
 const fileLabel = computed(() => (fileMode.value === 'audio' ? '选择音频文件' : '选择视频文件'));
 const isLinkInputPage = computed(() => !isFilePage.value);
+const authButtonText = computed(() => currentUser.value ? currentUser.value.email.split('@')[0] : uiText.value.login);
 
 const featureCards = computed(() => lang.value === 'en'
   ? [
@@ -1012,6 +1022,7 @@ async function extract() {
     notice.value = endpoint === '/api/transcribe-link'
       ? '提取完成，已识别视频本身文案，并整理标题和标签。'
       : '提取完成，已整理视频、标题、文案和标签。';
+    await loadMe();
   } catch (err) {
     error.value = err.message === 'Failed to fetch'
       ? '接口请求失败或超时，请稍后重试；如果是小红书图文，请优先使用手机 App 复制的完整分享链接。'
@@ -1046,6 +1057,7 @@ async function transcribeFile() {
       text: payload.data.text
     };
     notice.value = '转写完成，已提取音视频中的文案。';
+    await loadMe();
   } catch (err) {
     error.value = err.message || '转写失败，请稍后重试。';
   } finally {
@@ -1071,6 +1083,85 @@ async function paste() {
   } catch {
     error.value = '无法读取剪贴板，请手动粘贴。';
   }
+}
+
+async function loadMe() {
+  try {
+    const response = await fetch('/api/auth/me');
+    const payload = await response.json();
+    if (payload.ok) {
+      currentUser.value = payload.user;
+      usage.value = payload.usage;
+      if (payload.user) await loadRecords();
+    }
+  } catch {
+    // 登录状态不影响主工具使用。
+  }
+}
+
+async function loadRecords() {
+  if (!currentUser.value) {
+    records.value = [];
+    return;
+  }
+  const response = await fetch('/api/user/records').catch(() => null);
+  if (!response?.ok) return;
+  const payload = await response.json();
+  if (payload.ok) records.value = payload.records || [];
+}
+
+async function sendEmailCode() {
+  authLoading.value = true;
+  authMessage.value = '';
+  devCode.value = '';
+  try {
+    const response = await fetch('/api/auth/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: authEmail.value })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '验证码发送失败。');
+    authMessage.value = payload.message || '验证码已发送。';
+    devCode.value = payload.devCode || '';
+  } catch (err) {
+    authMessage.value = err.message || '验证码发送失败。';
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+async function verifyEmailCode() {
+  authLoading.value = true;
+  authMessage.value = '';
+  try {
+    const response = await fetch('/api/auth/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: authEmail.value, code: authCode.value })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '登录失败。');
+    currentUser.value = payload.user;
+    authOpen.value = false;
+    authCode.value = '';
+    await loadMe();
+  } catch (err) {
+    authMessage.value = err.message || '登录失败。';
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function loginWithGoogle() {
+  window.location.href = '/api/auth/google';
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+  currentUser.value = null;
+  records.value = [];
+  await loadMe();
 }
 
 function clearInput() {
@@ -1111,6 +1202,8 @@ function resetResult() {
   result.value = null;
   articleView.value = 'text';
 }
+
+onMounted(loadMe);
 </script>
 
 <template>
@@ -1134,9 +1227,59 @@ function resetResult() {
       </nav>
       <div class="header-actions">
         <button class="language-button" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中文' }}</button>
-        <button class="login-button">{{ uiText.login }}</button>
+        <button class="login-button" @click="authOpen = true">{{ authButtonText }}</button>
       </div>
     </header>
+
+    <div v-if="authOpen" class="auth-overlay" @click.self="authOpen = false">
+      <section class="auth-panel">
+        <button class="auth-close" @click="authOpen = false">×</button>
+        <div v-if="!currentUser">
+          <p class="eyebrow">账号登录</p>
+          <h2>登录后获得更多提取额度</h2>
+          <p class="auth-muted">邮箱验证码登录不需要密码。Google 登录需要先配置 OAuth。</p>
+          <button class="google-button" @click="loginWithGoogle">使用 Google 登录</button>
+          <div class="auth-divider">或使用邮箱验证码</div>
+          <input v-model="authEmail" class="auth-input" placeholder="输入邮箱" type="email" />
+          <div class="auth-code-row">
+            <input v-model="authCode" class="auth-input" placeholder="6 位验证码" inputmode="numeric" />
+            <button class="secondary-button" :disabled="authLoading" @click="sendEmailCode">
+              {{ authLoading ? '处理中' : '发验证码' }}
+            </button>
+          </div>
+          <button class="primary-button auth-submit" :disabled="authLoading" @click="verifyEmailCode">登录 / 注册</button>
+          <p v-if="authMessage" class="auth-message">{{ authMessage }}</p>
+          <p v-if="devCode" class="auth-dev">测试验证码：{{ devCode }}</p>
+        </div>
+        <div v-else>
+          <p class="eyebrow">用户中心</p>
+          <h2>{{ currentUser.email }}</h2>
+          <div class="account-stats">
+            <article>
+              <span>当前套餐</span>
+              <strong>{{ currentUser.plan || 'free' }}</strong>
+            </article>
+            <article>
+              <span>Credits</span>
+              <strong>{{ currentUser.credits ?? 0 }}</strong>
+            </article>
+            <article>
+              <span>今日剩余</span>
+              <strong>{{ usage?.remainingToday ?? '-' }}</strong>
+            </article>
+          </div>
+          <div class="record-list">
+            <h3>最近提取记录</h3>
+            <p v-if="!records.length" class="auth-muted">暂无记录。</p>
+            <article v-for="item in records" :key="item.id">
+              <strong>{{ item.result_title || item.action }}</strong>
+              <span>{{ new Date(item.created_at).toLocaleString() }}</span>
+            </article>
+          </div>
+          <button class="secondary-button auth-submit" @click="logout">退出登录</button>
+        </div>
+      </section>
+    </div>
 
     <main>
       <section v-if="isLegalPage" class="legal-hero">
@@ -1182,6 +1325,9 @@ function resetResult() {
         </div>
 
         <section v-if="isLinkInputPage" class="extract-box" aria-label="链接提取">
+          <p v-if="usage" class="usage-pill">
+            {{ currentUser ? `今日剩余 ${usage.remainingToday} 次，Credits ${currentUser.credits ?? 0}` : `游客今日剩余 ${usage.remainingToday} 次` }}
+          </p>
           <input
             v-model="url"
             :placeholder="
