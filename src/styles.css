@@ -1044,16 +1044,27 @@ h1 {
   padding: 0;
 }
 
-.faq-list article:first-child .faq-question {
+.faq-list article.open .faq-question {
   background: #edf5ff;
 }
 
 .faq-question {
   align-items: center;
+  background: #fff;
+  border: 0;
+  color: #101828;
+  cursor: pointer;
   display: flex;
+  font: inherit;
   gap: 18px;
   justify-content: space-between;
   padding: 28px 30px;
+  text-align: left;
+  width: 100%;
+}
+
+.faq-question:hover {
+  background: #f8fbff;
 }
 
 .faq-question svg {

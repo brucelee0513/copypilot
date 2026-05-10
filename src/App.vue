@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Captions,
   Check,
+  ChevronDown,
   ChevronUp,
   Clipboard,
   Copy,
@@ -39,6 +40,11 @@ const usage = ref(null);
 const records = ref([]);
 const devCode = ref('');
 const isPublicFreeMode = !['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+const openFaqIndex = ref(0);
+
+function toggleFaq(index) {
+  openFaqIndex.value = openFaqIndex.value === index ? -1 : index;
+}
 
 const pageMap = {
   '/video': {
@@ -1527,12 +1533,22 @@ onMounted(loadMe);
           <p>{{ uiText.faqSubtitle }}</p>
         </div>
         <div class="faq-list">
-          <article v-for="[question, answer] in faqs" :key="question">
-            <div class="faq-question">
+          <article
+            v-for="([question, answer], index) in faqs"
+            :key="question"
+            :class="{ open: openFaqIndex === index }"
+          >
+            <button
+              class="faq-question"
+              type="button"
+              :aria-expanded="openFaqIndex === index"
+              @click="toggleFaq(index)"
+            >
               <h3>{{ question }}</h3>
-              <ChevronUp :size="21" />
-            </div>
-            <p>{{ answer }}</p>
+              <ChevronUp v-if="openFaqIndex === index" :size="21" />
+              <ChevronDown v-else :size="21" />
+            </button>
+            <p v-if="openFaqIndex === index">{{ answer }}</p>
           </article>
         </div>
       </section>
