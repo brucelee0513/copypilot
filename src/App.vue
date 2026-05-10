@@ -1420,6 +1420,14 @@ onMounted(loadMe);
       </div>
     </header>
 
+    <nav v-if="!isLegalPage" class="mobile-nav" aria-label="手机导航">
+      <a href="/" @click.prevent="navigate('/')">{{ uiText.nav[0] }}</a>
+      <a href="/video" @click.prevent="navigate('/video')">{{ uiText.nav[1] }}</a>
+      <a href="/text" @click.prevent="navigate('/text')">{{ uiText.nav[2] }}</a>
+      <a href="/image-text" @click.prevent="navigate('/image-text')">{{ uiText.nav[3] }}</a>
+      <a href="/article" @click.prevent="navigate('/article')">{{ uiText.nav[4] }}</a>
+    </nav>
+
     <div v-if="authOpen && !isPublicFreeMode" class="auth-overlay" @click.self="authOpen = false">
       <section class="auth-panel">
         <button class="auth-close" @click="authOpen = false">×</button>
