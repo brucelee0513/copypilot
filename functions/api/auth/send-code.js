@@ -82,7 +82,7 @@ async function sendEmailCode({ email, code, config, env }) {
 
 function buildEmailMessage({ email, code, config }) {
   return {
-    from: parseEmailFrom(config.emailFrom),
+    from: config.emailFrom || 'CopyPilot <no-reply@copypilot.cc>',
     to: email,
     subject: 'CopyPilot 登录验证码',
     text: `你的 CopyPilot 登录验证码是 ${code}，10 分钟内有效。`,
@@ -95,13 +95,6 @@ function buildEmailMessage({ email, code, config }) {
       </div>
     `
   };
-}
-
-function parseEmailFrom(value) {
-  const from = String(value || '').trim();
-  const match = from.match(/^(.*?)\s*<([^>]+)>$/);
-  if (!match) return from || 'no-reply@copypilot.cc';
-  return { name: match[1].trim() || 'CopyPilot', email: match[2].trim() };
 }
 
 function isLocalDev(request) {
