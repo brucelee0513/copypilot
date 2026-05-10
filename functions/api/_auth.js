@@ -16,6 +16,8 @@ export function getConfig(env) {
     appOrigin: env.APP_ORIGIN || 'http://127.0.0.1:8790',
     sessionSecret: env.SESSION_SECRET || 'dev-session-secret-change-me',
     emailFrom: env.EMAIL_FROM || 'CopyPilot <no-reply@copypilot.pages.dev>',
+    mailerUrl: env.MAILER_URL || '',
+    mailerSecret: env.MAILER_SECRET || '',
     resendKey: env.RESEND_API_KEY || '',
     googleClientId: env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: env.GOOGLE_CLIENT_SECRET || '',
