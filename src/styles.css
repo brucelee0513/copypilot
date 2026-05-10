@@ -419,18 +419,6 @@ a {
   padding: 12px;
 }
 
-.usage-pill {
-  background: var(--theme-soft);
-  border: 1px solid var(--theme-border);
-  border-radius: 999px;
-  color: var(--theme);
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 900;
-  margin: 0 auto 14px;
-  padding: 8px 14px;
-}
-
 .primary-button {
   background: var(--theme);
   border: 1px solid var(--theme);

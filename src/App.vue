@@ -1325,9 +1325,6 @@ onMounted(loadMe);
         </div>
 
         <section v-if="isLinkInputPage" class="extract-box" aria-label="链接提取">
-          <p v-if="usage" class="usage-pill">
-            {{ currentUser ? `今日剩余 ${usage.remainingToday} 次，Credits ${currentUser.credits ?? 0}` : `游客今日剩余 ${usage.remainingToday} 次` }}
-          </p>
           <input
             v-model="url"
             :placeholder="
