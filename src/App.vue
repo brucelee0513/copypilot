@@ -38,6 +38,7 @@ const currentUser = ref(null);
 const usage = ref(null);
 const records = ref([]);
 const devCode = ref('');
+const isPublicFreeMode = !['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 
 const pageMap = {
   '/video': {
@@ -432,13 +433,13 @@ const steps = computed(() => lang.value === 'en'
 
 const faqs = computed(() => lang.value === 'en'
   ? [
-      ['Is CopyPilot free?', 'Core extraction features can be offered for free, while high-volume, batch, and advanced AI workflows can become paid plans later.'],
+      ['Is CopyPilot free?', 'Yes. The public version is currently free to use for core extraction workflows.'],
       ['Which platforms are supported?', 'The site targets 50+ platforms and currently prioritizes common video, image, and article workflows.'],
       ['Why do some links fail?', 'Private posts, deleted content, expired links, platform restrictions, or missing permissions can cause failures.'],
       ['Can I use extracted content commercially?', 'CopyPilot organizes content. Copyright, licensing, and platform compliance remain the user’s responsibility.']
     ]
   : [
-      ['CopyPilot 免费吗？', '基础提取功能面向用户免费开放，高频、批量和高级能力后续可做会员权益。'],
+      ['CopyPilot 免费吗？', '免费。当前公开版本面向用户开放基础提取功能，可以直接使用。'],
       ['支持哪些平台？', '首页主打 50+ 平台，优先覆盖抖音、小红书、TikTok、快手、B站、YouTube、Instagram、微博、公众号等常用场景。'],
       ['为什么有些链接提取失败？', '私密作品、删除作品、平台限制、链接过期或接口暂不支持，都可能导致失败。'],
       ['提取内容可以商用吗？', '工具只负责内容整理，素材版权和平台规则需要由使用者自行确认。']
@@ -528,7 +529,7 @@ const legalContent = computed(() => {
     '/terms': [
       ['合理使用', '请只提取你有权处理的内容，不要用于侵犯版权、隐私或平台规则的用途。'],
       ['服务限制', '私密作品、删除作品、过期链接、平台限制或超大文件可能导致提取失败。'],
-      ['账号与额度', '后续可能为免费用户设置每日额度，并为高频用户提供会员能力。']
+      ['免费使用', '当前公开版本打开页面即可使用基础提取功能。']
     ],
     '/copyright': [
       ['内容归属', 'CopyPilot 不拥有你提取的原始素材版权，也不会授予你对第三方内容的商业使用权。'],
@@ -1086,6 +1087,7 @@ async function paste() {
 }
 
 async function loadMe() {
+  if (isPublicFreeMode) return;
   try {
     const response = await fetch('/api/auth/me');
     const payload = await response.json();
@@ -1227,11 +1229,11 @@ onMounted(loadMe);
       </nav>
       <div class="header-actions">
         <button class="language-button" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中文' }}</button>
-        <button class="login-button" @click="authOpen = true">{{ authButtonText }}</button>
+        <button v-if="!isPublicFreeMode" class="login-button" @click="authOpen = true">{{ authButtonText }}</button>
       </div>
     </header>
 
-    <div v-if="authOpen" class="auth-overlay" @click.self="authOpen = false">
+    <div v-if="authOpen && !isPublicFreeMode" class="auth-overlay" @click.self="authOpen = false">
       <section class="auth-panel">
         <button class="auth-close" @click="authOpen = false">×</button>
         <div v-if="!currentUser">

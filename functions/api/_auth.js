@@ -19,6 +19,7 @@ export function getConfig(env) {
     mailerUrl: env.MAILER_URL || '',
     mailerSecret: env.MAILER_SECRET || '',
     resendKey: env.RESEND_API_KEY || '',
+    publicFreeMode: env.PUBLIC_FREE_MODE === 'true',
     googleClientId: env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: env.GOOGLE_CLIENT_SECRET || '',
     googleRedirectUri: env.GOOGLE_REDIRECT_URI || ''
@@ -63,6 +64,7 @@ export async function getSessionUser(request, env) {
 export async function requireQuota(context, action = 'extract') {
   const { request, env } = context;
   if (!env.DB) return { ok: true, user: null, anonymousId: null, setCookie: null };
+  if (getConfig(env).publicFreeMode) return { ok: true, user: null, anonymousId: null, setCookie: null, freeMode: true };
 
   const user = await getSessionUser(request, env);
   if (user) {
@@ -98,6 +100,7 @@ export async function requireQuota(context, action = 'extract') {
 export async function recordUsage(context, quota, details = {}) {
   const { env } = context;
   if (!env.DB || !quota?.ok) return;
+  if (quota.freeMode) return;
   const action = details.action || 'extract';
   const id = makeId('use');
 
