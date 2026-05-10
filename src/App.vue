@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Captions,
   Check,
+  ChevronUp,
   Clipboard,
   Copy,
   FileAudio,
@@ -14,7 +15,6 @@ import {
   Loader2,
   Sparkles,
   Upload,
-  Wand2
 } from 'lucide-vue-next';
 
 const siteName = 'CopyPilot';
@@ -348,8 +348,8 @@ const uiText = computed(() => {
     featureTitle: '不只是复制链接，而是把内容整理成可用素材',
     stepsEyebrow: '使用步骤',
     stepsTitle: '三步完成视频和文案提取',
-    faqEyebrow: '常见问题答疑',
-    faqTitle: '你可能想知道的问题',
+    faqTitle: '常见问题解答',
+    faqSubtitle: '关于 CopyPilot 视频文案提取工具的常见问题和详细解答',
     seoEyebrow: '热门工具',
     seoTitle: '按平台和场景快速提取内容',
     footerDesc: '支持50+平台的视频、图文、文章和文案提取工具。',
@@ -379,8 +379,8 @@ const uiText = computed(() => {
     featureTitle: 'Turn links into reusable content assets',
     stepsEyebrow: 'How it works',
     stepsTitle: 'Extract content in three steps',
-    faqEyebrow: 'FAQ',
-    faqTitle: 'Common questions',
+    faqTitle: 'Frequently Asked Questions',
+    faqSubtitle: 'Common questions and detailed answers about CopyPilot content extraction tools',
     seoEyebrow: 'Popular tools',
     seoTitle: 'Find tools by platform and workflow',
     footerDesc: 'A video, image, article, and caption extraction tool for 50+ platforms.',
@@ -433,16 +433,28 @@ const steps = computed(() => lang.value === 'en'
 
 const faqs = computed(() => lang.value === 'en'
   ? [
-      ['Is CopyPilot free?', 'Yes. The public version is currently free to use for core extraction workflows.'],
-      ['Which platforms are supported?', 'The site targets 50+ platforms and currently prioritizes common video, image, and article workflows.'],
-      ['Why do some links fail?', 'Private posts, deleted content, expired links, platform restrictions, or missing permissions can cause failures.'],
-      ['Can I use extracted content commercially?', 'CopyPilot organizes content. Copyright, licensing, and platform compliance remain the user’s responsibility.']
+      ['Is CopyPilot completely free? Are there usage limits?', 'CopyPilot is currently free for core extraction workflows. You can extract captions, videos, images, audio, and article content directly from the browser.'],
+      ['Which platforms are supported? Are overseas platforms supported?', 'CopyPilot targets 50+ mainstream platforms, including Douyin, Xiaohongshu, Kuaishou, Bilibili, Weibo, WeChat articles, TikTok, YouTube, Instagram, Lemon8, and more. Publicly accessible links usually work best.'],
+      ['How accurate is video speech-to-text? Which languages are supported?', 'Speech recognition works best when the audio is clear. Chinese, English, Japanese, Korean, and other common languages are supported, while heavy background noise, music, or overlapping voices may reduce accuracy.'],
+      ['How long does extraction take? Are there file size limits?', 'Titles, captions, images, and basic media links usually finish in 3-10 seconds. Speech-to-text requires server processing and depends on the media length. Large files may take longer or need to be split.'],
+      ['Are downloaded videos watermarked? Will quality be compressed?', 'When the source provides an original media link, CopyPilot keeps the source quality as much as possible and does not recompress files. Actual watermark and quality depend on what the platform returns.'],
+      ['How does batch download work? How many files are supported?', 'On result pages, media sections can provide download actions for videos or images. Batch packaging can be added for suitable result types and is best used for image-heavy posts.'],
+      ['Can extracted content be used commercially? Are there copyright issues?', 'CopyPilot is a technical tool. Copyright belongs to the original creators or rights holders. Please follow platform rules and copyright law, mark sources for reference use, and obtain authorization before commercial use.'],
+      ['Why do some videos fail to extract?', 'Common reasons include deleted content, private posts, expired links, platform restrictions, temporary interface changes, unsupported formats, or network issues. Check whether the link is correct and publicly accessible, then retry later.'],
+      ['Is CopyPilot safe? Will my information be exposed?', 'CopyPilot uses HTTPS. Extraction is handled for the requested task only, and public pages do not require account information. Avoid submitting private or sensitive links.'],
+      ['Can I use it on mobile and desktop?', 'Yes. CopyPilot is responsive and works in modern browsers on phones, tablets, Windows, and Mac. No app download is required.']
     ]
   : [
-      ['CopyPilot 免费吗？', '免费。当前公开版本面向用户开放基础提取功能，可以直接使用。'],
-      ['支持哪些平台？', '首页主打 50+ 平台，优先覆盖抖音、小红书、TikTok、快手、B站、YouTube、Instagram、微博、公众号等常用场景。'],
-      ['为什么有些链接提取失败？', '私密作品、删除作品、平台限制、链接过期或接口暂不支持，都可能导致失败。'],
-      ['提取内容可以商用吗？', '工具只负责内容整理，素材版权和平台规则需要由使用者自行确认。']
+      ['CopyPilot 完全免费吗？有使用次数限制吗？', 'CopyPilot 当前公开版本免费使用，可以直接提取视频文案、下载视频、提取图片、音频和文章内容。核心工具打开页面即可使用。'],
+      ['支持哪些视频平台？是否支持海外平台？', 'CopyPilot 支持 50+ 主流内容平台，包括抖音、小红书、快手、B站、微博、公众号文章、TikTok、YouTube、Instagram、Lemon8 等。只要是公开可访问的作品链接，通常都可以尝试提取。'],
+      ['视频文案识别的准确率如何？支持哪些语言？', '音频清晰时，语音转文字效果会更好。当前支持中文、英语、日语、韩语等常见语言。如果视频声音较小、背景噪音较大、多人同时说话或音乐较重，识别准确度可能会受到影响。'],
+      ['提取视频文案需要多长时间？有大小限制吗？', '标题、正文、图片和基础媒体链接通常 3-10 秒内完成。视频文案提取，也就是语音转文字，需要服务器处理，耗时会根据视频长度变化。较大的本地音视频文件可能需要更长时间，必要时可以分段上传。'],
+      ['下载的视频有水印吗？画质会被压缩吗？', '如果平台接口返回原始媒体链接，CopyPilot 会尽量保留源文件质量，不会主动进行二次压缩。是否带水印、清晰度高低，取决于平台实际返回的媒体资源。'],
+      ['批量下载功能如何使用？最多支持多少个文件？', '在提取结果页面，视频或图片区域会显示对应的打开、下载或复制按钮。对于图片较多的图文内容，后续也可以扩展为 ZIP 打包下载，更适合素材整理和批量保存。'],
+      ['提取的内容可以商用吗？有版权问题吗？', 'CopyPilot 只提供技术工具服务，提取内容的版权归原作者或权利方所有。使用提取内容时，请遵守相关平台规则和版权法律。学习参考、二次创作建议注明来源，商业使用前请先获得授权。'],
+      ['为什么有些视频无法提取或提取失败？', '常见原因包括作品已删除、内容设为私密、链接过期、平台限制、接口临时变化、格式暂不支持或网络连接异常。遇到这种情况，可以检查链接是否正确、作品是否公开可见，或稍后重试。'],
+      ['使用 CopyPilot 安全吗？会泄露我的信息吗？', 'CopyPilot 使用 HTTPS 加密传输，公开工具页面不需要提交个人资料。提取请求只用于完成当前任务。请不要提交私密、敏感或没有授权的链接内容。'],
+      ['手机和电脑端都可以使用吗？', '可以。CopyPilot 采用响应式设计，支持手机、平板和电脑浏览器。无论使用 iOS、Android、Windows 还是 Mac，都可以直接在浏览器中打开使用，无需下载 App。']
     ]);
 
 const seoToolGroups = computed(() => lang.value === 'en'
@@ -1510,13 +1522,16 @@ onMounted(loadMe);
       </section>
 
       <section v-if="!isLegalPage" id="faq" class="section">
-        <div class="section-title center">
-          <p class="eyebrow"><Wand2 :size="18" /> {{ uiText.faqEyebrow }}</p>
+        <div class="section-title center faq-title">
           <h2>{{ uiText.faqTitle }}</h2>
+          <p>{{ uiText.faqSubtitle }}</p>
         </div>
         <div class="faq-list">
           <article v-for="[question, answer] in faqs" :key="question">
-            <h3>{{ question }}</h3>
+            <div class="faq-question">
+              <h3>{{ question }}</h3>
+              <ChevronUp :size="21" />
+            </div>
             <p>{{ answer }}</p>
           </article>
         </div>
