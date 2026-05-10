@@ -350,6 +350,8 @@ const uiText = computed(() => {
     progressExtract: '正在提取标题、发布文案、标签和素材...',
     progressTranscribe: '已拿到视频素材，正在识别视频本身文案...',
     progressFinalize: '正在整理可复制、可下载的结果...',
+    progressUpload: '正在上传文件并识别语音内容...',
+    resultLabel: '结果',
     placeholders: {
       auto: '粘贴作品链接，自动识别并提取文案、视频、图片和Tag',
       video: '粘贴作品链接，提取视频文件',
@@ -387,6 +389,8 @@ const uiText = computed(() => {
     progressExtract: 'Extracting title, caption, tags, and media...',
     progressTranscribe: 'Video found. Transcribing the spoken content...',
     progressFinalize: 'Preparing copyable and downloadable results...',
+    progressUpload: 'Uploading the file and recognizing speech...',
+    resultLabel: 'Result',
     placeholders: {
       auto: 'Paste a post link to auto extract captions, videos, images, and tags',
       video: 'Paste a post link to extract video files',
@@ -658,12 +662,12 @@ const tags = computed(() => {
   const detail = primaryDetail.value || {};
   const data = result.value || {};
   const detailTags = [
-    ...(detail.tagList || []),
-    ...(detail.tags || []),
-    ...(detail.hashtags || []),
-    ...(data.tags || []),
-    ...(data.hashtags || []),
-    ...(data.keywords || [])
+    ...toArray(detail.tagList),
+    ...toArray(detail.tags),
+    ...toArray(detail.hashtags),
+    ...toArray(data.tags),
+    ...toArray(data.hashtags),
+    ...toArray(data.keywords)
   ]
     .map(readTagName)
     .filter(Boolean)
@@ -712,18 +716,18 @@ const imageLinks = computed(() => {
   const data = result.value;
   if (!data) return [];
   const detail = primaryDetail.value || data.aweme_detail || data.itemInfo?.itemStruct || data.note || data;
-  const images =
-    detail.imageList ||
-    detail.images ||
-    detail.content?.article?.images ||
-    detail.image_post_info?.images ||
-    data.images ||
-    [];
+  const images = [
+    ...toArray(detail.imageList),
+    ...toArray(detail.images),
+    ...toArray(detail.content?.article?.images),
+    ...toArray(detail.image_post_info?.images),
+    ...toArray(data.images)
+  ];
   const thumbnails = [
-    ...(Array.isArray(detail.thumbnails) ? detail.thumbnails : []),
-    ...(Array.isArray(data.thumbnails) ? data.thumbnails : []),
-    ...(Array.isArray(detail.thumbnail) ? detail.thumbnail : []),
-    ...(Array.isArray(data.thumbnail) ? data.thumbnail : [])
+    ...toArray(detail.thumbnails),
+    ...toArray(data.thumbnails),
+    ...toArray(detail.thumbnail),
+    ...toArray(data.thumbnail)
   ];
   const links = [];
 
@@ -849,6 +853,17 @@ function normalizeMediaUrl(link) {
 
 function normalizeCompareText(value) {
   return String(value || '').replace(/\s+/g, '').trim();
+}
+
+function toArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'object') {
+    if (Array.isArray(value.items)) return value.items;
+    if (Array.isArray(value.list)) return value.list;
+    if (Array.isArray(value.data)) return value.data;
+  }
+  return [value];
 }
 
 function cleanTopicName(value) {
@@ -1205,7 +1220,7 @@ async function transcribeFile() {
 
   loading.value = true;
   try {
-    setExtractProgress('正在上传文件并识别语音内容...', 35);
+    setExtractProgress(uiText.value.progressUpload, 35);
     const form = new FormData();
     form.set('file', selectedFile.value);
     const response = await fetch('/api/transcribe', {
@@ -1561,7 +1576,7 @@ onMounted(loadMe);
       <section v-if="loading && extractProgress" class="result-section progress-section" aria-live="polite">
         <div class="progress-card">
           <div class="section-title center">
-            <h2>提取结果</h2>
+            <h2>{{ uiText.resultLabel }}</h2>
           </div>
           <div class="progress-panel">
             <Loader2 class="spin progress-icon" :size="26" />
@@ -1580,7 +1595,7 @@ onMounted(loadMe);
         <div class="result-card">
           <div class="section-title">
             <div>
-              <p class="eyebrow">结果</p>
+              <p class="eyebrow">{{ uiText.resultLabel }}</p>
               <h2>{{ resultHeading }}</h2>
             </div>
             <button class="icon-button" title="复制文案" @click="copyText"><Copy :size="18" /></button>
