@@ -9,7 +9,6 @@ export async function onRequestPost(context) {
   const model = env.SILICONFLOW_TRANSCRIBE_MODEL || 'FunAudioLLM/SenseVoiceSmall';
 
   if (!tikhubKey) return json({ ok: false, message: '提取服务暂未配置完成。' }, 500);
-  if (!siliconFlowKey) return json({ ok: false, message: '转写服务暂未配置完成。' }, 500);
 
   let body;
   try {
@@ -26,6 +25,29 @@ export async function onRequestPost(context) {
 
   try {
     const sourceData = await extractByUrl({ apiKey: tikhubKey, baseUrl: tikhubBaseUrl, url });
+    const subtitleUrl = getSubtitleLinks(sourceData)[0];
+    const publishedText = getPublishedText(sourceData);
+
+    if (subtitleUrl) {
+      const subtitleText = await fetchSubtitleText(subtitleUrl);
+      if (subtitleText) {
+        const data = {
+          ...sourceData,
+          text: subtitleText,
+          transcript: subtitleText,
+          publishedText,
+          transcriptSource: 'subtitle'
+        };
+        await recordUsage(context, quota, {
+          action: 'extract',
+          sourceUrl: url,
+          resultTitle: getPublishedText(sourceData) || sourceData?.title || null
+        });
+        const headers = quota.setCookie ? { 'Set-Cookie': quota.setCookie } : {};
+        return json({ ok: true, data }, 200, headers);
+      }
+    }
+
     const videoUrl = getVideoLinks(sourceData)[0];
 
     if (!videoUrl) {
@@ -34,6 +56,14 @@ export async function onRequestPost(context) {
         message: '已解析作品信息，但没有拿到可转写的视频源。',
         data: sourceData
       }, 502);
+    }
+
+    if (!siliconFlowKey) {
+      return json({
+        ok: false,
+        message: '转写服务暂未配置完成。',
+        data: sourceData
+      }, 500);
     }
 
     const mediaResponse = await fetch(videoUrl, {
@@ -59,7 +89,6 @@ export async function onRequestPost(context) {
       blob: mediaBlob,
       filename: 'source-video.mp4'
     });
-    const publishedText = getPublishedText(sourceData);
 
     const data = {
       ...sourceData,
@@ -116,11 +145,87 @@ function getVideoLinks(data) {
   if (video.download_addr?.url_list?.length) links.push(...video.download_addr.url_list);
   if (detail.video_url) links.push(detail.video_url);
   if (data?.video_url) links.push(data.video_url);
+  if (data?.videos?.items?.length) {
+    const sortedVideos = [...data.videos.items].sort((a, b) => Number(b.hasAudio) - Number(a.hasAudio));
+    links.push(...sortedVideos.map((item) => item.url));
+  }
   return [...new Set(links)].filter(Boolean);
+}
+
+function getSubtitleLinks(data) {
+  const items = data?.subtitles?.items || data?.subtitle?.items || data?.captions?.items || [];
+  return items
+    .map((item) => typeof item === 'string' ? item : item?.url)
+    .filter(Boolean);
+}
+
+async function fetchSubtitleText(url) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36'
+    }
+  });
+  if (!response.ok) return '';
+  const raw = await response.text();
+  return parseSubtitleText(raw);
+}
+
+function parseSubtitleText(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+
+  try {
+    const payload = JSON.parse(text);
+    const events = payload.events || payload.body?.events || [];
+    const lines = events
+      .flatMap((event) => event.segs || event.segments || [])
+      .map((seg) => seg.utf8 || seg.text || '')
+      .join('')
+      .split(/\n+/)
+      .map(cleanSubtitleLine)
+      .filter(Boolean);
+    if (lines.length) return dedupeLines(lines).join('\n');
+  } catch {
+    // XML subtitle format is handled below.
+  }
+
+  const xmlLines = [...text.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/gi)]
+    .map((match) => cleanSubtitleLine(decodeEntities(match[1])))
+    .filter(Boolean);
+  if (xmlLines.length) return dedupeLines(xmlLines).join('\n');
+
+  return cleanSubtitleLine(decodeEntities(text));
+}
+
+function cleanSubtitleLine(value) {
+  return decodeEntities(value)
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function dedupeLines(lines) {
+  const output = [];
+  for (const line of lines) {
+    if (line && line !== output[output.length - 1]) output.push(line);
+  }
+  return output;
+}
+
+function decodeEntities(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
 }
 
 function getPublishedText(data) {
   return (
+    data?.description ||
     data?.desc ||
     data?.caption ||
     data?.aweme_detail?.desc ||

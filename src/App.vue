@@ -30,6 +30,7 @@ const loading = ref(false);
 const error = ref('');
 const notice = ref('');
 const result = ref(null);
+const extractProgress = ref(null);
 const authOpen = ref(false);
 const authLoading = ref(false);
 const authEmail = ref('');
@@ -344,7 +345,13 @@ const uiText = computed(() => {
     loading: '提取中...',
     paste: '粘贴',
     clear: '清空',
+    progressTitle: '处理中，请稍候...',
+    progressDetect: '正在识别链接类型和内容平台...',
+    progressExtract: '正在提取标题、发布文案、标签和素材...',
+    progressTranscribe: '已拿到视频素材，正在识别视频本身文案...',
+    progressFinalize: '正在整理可复制、可下载的结果...',
     placeholders: {
+      auto: '粘贴作品链接，自动识别并提取文案、视频、图片和Tag',
       video: '粘贴作品链接，提取视频文件',
       image: '粘贴图文作品链接，提取图片、标题、文案和Tag',
       article: '粘贴公众号文章或网页文章链接',
@@ -375,7 +382,13 @@ const uiText = computed(() => {
     loading: 'Extracting...',
     paste: 'Paste',
     clear: 'Clear',
+    progressTitle: 'Processing, please wait...',
+    progressDetect: 'Detecting link type and platform...',
+    progressExtract: 'Extracting title, caption, tags, and media...',
+    progressTranscribe: 'Video found. Transcribing the spoken content...',
+    progressFinalize: 'Preparing copyable and downloadable results...',
     placeholders: {
+      auto: 'Paste a post link to auto extract captions, videos, images, and tags',
       video: 'Paste a post link to extract video files',
       image: 'Paste an image post link to extract images, title, caption, and tags',
       article: 'Paste a WeChat article or web article link',
@@ -583,6 +596,7 @@ const resultTitle = computed(() => {
 
 const resultHeading = computed(() => {
   if (!result.value) return '提取结果';
+  if (isHome.value) return '智能提取结果';
   if (toolPage.value?.type === 'text') return '文案提取结果';
   if (toolPage.value?.type === 'video') return '视频提取结果';
   if (toolPage.value?.type === 'image') return '图文提取结果';
@@ -609,8 +623,10 @@ const resultText = computed(() => {
     data.text ||
     readArticleText(detail) ||
     stripHtml(detail?.content_html || detail?.html || detail?.article_content || detail?.digest) ||
+    detail?.description ||
     detail?.desc ||
     detail?.displayTitle ||
+    data.description ||
     data.desc ||
     data.caption ||
     data.aweme_detail?.desc ||
@@ -626,7 +642,9 @@ const publishedText = computed(() => {
   if (!data) return '';
   return (
     data.publishedText ||
+    detail?.description ||
     detail?.desc ||
+    data.description ||
     data.desc ||
     data.caption ||
     data.aweme_detail?.desc ||
@@ -637,8 +655,19 @@ const publishedText = computed(() => {
 });
 
 const tags = computed(() => {
-  const detailTags = (primaryDetail.value?.tagList || [])
-    .map((tag) => tag.name ? `#${cleanTopicName(tag.name)}` : '')
+  const detail = primaryDetail.value || {};
+  const data = result.value || {};
+  const detailTags = [
+    ...(detail.tagList || []),
+    ...(detail.tags || []),
+    ...(detail.hashtags || []),
+    ...(data.tags || []),
+    ...(data.hashtags || []),
+    ...(data.keywords || [])
+  ]
+    .map(readTagName)
+    .filter(Boolean)
+    .map((tag) => `#${cleanTopicName(tag)}`)
     .filter(Boolean);
   const text = `${publishedText.value} ${resultText.value}`.trim();
   const textTags = text ? [...text.matchAll(/#[^\s#，,。；;]+/g)].map((match) => `#${cleanTopicName(match[0])}`) : [];
@@ -666,7 +695,12 @@ const videoLinks = computed(() => {
   if (video.download_addr?.url_list?.length) links.push(...video.download_addr.url_list);
   if (detail.video_url) links.push(detail.video_url);
   if (data.video_url) links.push(data.video_url);
-  return [...new Set(links)].slice(0, 6);
+  if (data.videos?.items?.length) {
+    const sortedVideos = [...data.videos.items].sort((a, b) => Number(b.hasAudio) - Number(a.hasAudio));
+    links.push(...sortedVideos.map((item) => item.url));
+  }
+  links.push(...findVideoUrlsDeep(detail));
+  return [...new Set(links.map(normalizeMediaUrl).filter(Boolean))].slice(0, 8);
 });
 
 const previewVideoUrl = computed(() => {
@@ -685,13 +719,23 @@ const imageLinks = computed(() => {
     detail.image_post_info?.images ||
     data.images ||
     [];
+  const thumbnails = [
+    ...(Array.isArray(detail.thumbnails) ? detail.thumbnails : []),
+    ...(Array.isArray(data.thumbnails) ? data.thumbnails : []),
+    ...(Array.isArray(detail.thumbnail) ? detail.thumbnail : []),
+    ...(Array.isArray(data.thumbnail) ? data.thumbnail : [])
+  ];
   const links = [];
 
   if (detail.cover?.url_list?.length) links.push(detail.cover.url_list[0]);
-  if (detail.cover) links.push(detail.cover);
+  if (detail.cover) links.push(pickImageUrl(detail.cover));
   if (detail.cover_url) links.push(detail.cover_url);
   if (detail.msg_cdn_url) links.push(detail.msg_cdn_url);
   for (const image of images) {
+    const bestImage = pickImageUrl(image);
+    if (bestImage) links.push(bestImage);
+  }
+  for (const image of thumbnails) {
     const bestImage = pickImageUrl(image);
     if (bestImage) links.push(bestImage);
   }
@@ -707,9 +751,16 @@ const articleHtml = computed(() => {
 });
 
 const hasResultContent = computed(() => result.value || videoLinks.value.length || imageLinks.value.length);
-const shouldShowVideoResult = computed(() => toolPage.value?.type === 'video' && videoLinks.value.length);
-const shouldShowImageResult = computed(() => ['image', 'article'].includes(toolPage.value?.type) && imageLinks.value.length);
+const shouldShowVideoResult = computed(() => videoLinks.value.length && (isHome.value || ['video', 'text'].includes(toolPage.value?.type)));
+const shouldShowImageResult = computed(() => imageLinks.value.length && (isHome.value || ['image', 'article'].includes(toolPage.value?.type)));
+const shouldShowPublishedText = computed(() => {
+  if (!publishedText.value) return false;
+  if (!isHome.value && !(toolPage.value?.type === 'text' && textMode.value === 'link')) return false;
+  return normalizeCompareText(publishedText.value) !== normalizeCompareText(resultText.value);
+});
 const copyBlockTitle = computed(() => {
+  if (isHome.value && result.value?.transcript) return '视频识别文案';
+  if (isHome.value) return '作品文案';
   if (toolPage.value?.type === 'text') return textMode.value === 'file' ? '视频/音频识别文案' : '视频识别文案';
   if (toolPage.value?.type === 'image') return '图文正文';
   if (toolPage.value?.type === 'article') return '文章正文';
@@ -791,8 +842,13 @@ function findPrimaryDetail(data) {
 function normalizeMediaUrl(link) {
   const value = String(link || '').trim();
   if (!value) return '';
+  if (!/^https?:\/\//i.test(value)) return '';
   if (value.startsWith('http://')) return `https://${value.slice(7)}`;
   return value;
+}
+
+function normalizeCompareText(value) {
+  return String(value || '').replace(/\s+/g, '').trim();
 }
 
 function cleanTopicName(value) {
@@ -800,6 +856,12 @@ function cleanTopicName(value) {
     .replace(/^#/, '')
     .replace(/\[话题\]$/g, '')
     .trim();
+}
+
+function readTagName(tag) {
+  if (!tag) return '';
+  if (typeof tag === 'string') return tag;
+  return tag.name || tag.title || tag.text || tag.tag_name || tag.keyword || '';
 }
 
 function pickImageUrl(image) {
@@ -922,6 +984,40 @@ function findImageUrlsDeep(input) {
   return urls;
 }
 
+function findVideoUrlsDeep(input) {
+  const urls = [];
+  const seen = new Set();
+  const queue = [input];
+
+  while (queue.length) {
+    const item = queue.shift();
+    if (!item || seen.has(item)) continue;
+
+    if (typeof item === 'string') {
+      if (looksLikeVideoUrl(item)) urls.push(item);
+      continue;
+    }
+
+    if (typeof item !== 'object') continue;
+    seen.add(item);
+
+    const directUrl = item.url || item.src || item.video_url || item.play_url || item.download_url;
+    const mediaType = `${item.type || ''} ${item.mimeType || ''} ${item.format || ''} ${item.extension || ''}`;
+    if (directUrl && /video|mp4|webm|mov|m3u8/i.test(mediaType)) urls.push(directUrl);
+
+    for (const value of Object.values(item)) {
+      if (value && (typeof value === 'object' || typeof value === 'string')) queue.push(value);
+    }
+  }
+
+  return urls;
+}
+
+function looksLikeVideoUrl(value) {
+  const urlText = String(value || '');
+  return /googlevideo\.com\/videoplayback|mime=video|video\/tos|douyinvod|\.mp4(?:[?#]|$)|\.webm(?:[?#]|$)|\.mov(?:[?#]|$)|\.m3u8(?:[?#]|$)/i.test(urlText);
+}
+
 function splitArticleParagraphs(text) {
   return String(text || '')
     .split(/\n{2,}|(?<=[。！？!?])\s+/)
@@ -1015,10 +1111,19 @@ function updateMeta() {
 
 updateMeta();
 
+function setExtractProgress(detail, percent, title = uiText.value.progressTitle) {
+  extractProgress.value = {
+    title,
+    detail,
+    percent: Math.max(8, Math.min(100, percent))
+  };
+}
+
 async function extract() {
   error.value = '';
   notice.value = '';
   result.value = null;
+  extractProgress.value = null;
 
   const cleanUrl = extractUrl(url.value);
   if (!cleanUrl) {
@@ -1029,7 +1134,12 @@ async function extract() {
   loading.value = true;
   try {
     url.value = cleanUrl;
+    const smartHome = isHome.value;
     const endpoint = toolPage.value?.type === 'text' && textMode.value === 'link' ? '/api/transcribe-link' : '/api/extract';
+
+    setExtractProgress(uiText.value.progressDetect, 16);
+    if (smartHome) setExtractProgress(uiText.value.progressExtract, 36);
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1038,9 +1148,40 @@ async function extract() {
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.message || '提取失败');
     result.value = payload.data;
-    notice.value = endpoint === '/api/transcribe-link'
-      ? '提取完成，已识别视频本身文案，并整理标题和标签。'
-      : '提取完成，已整理视频、标题、文案和标签。';
+
+    if (smartHome && videoLinks.value.length) {
+      setExtractProgress(uiText.value.progressTranscribe, 72);
+      try {
+        const transcriptResponse = await fetch('/api/transcribe-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanUrl, type: 'text' })
+        });
+        const transcriptPayload = await transcriptResponse.json();
+        if (transcriptResponse.ok && transcriptPayload.ok) {
+          result.value = {
+            ...result.value,
+            ...transcriptPayload.data,
+            transcript: transcriptPayload.data?.transcript || transcriptPayload.data?.text || result.value?.transcript || '',
+            publishedText: transcriptPayload.data?.publishedText || publishedText.value
+          };
+        } else if (transcriptPayload.data) {
+          result.value = { ...result.value, ...transcriptPayload.data };
+          notice.value = `基础内容已提取完成；${transcriptPayload.message || '视频语音文案暂时未识别成功。'}`;
+        } else {
+          notice.value = `基础内容已提取完成；${transcriptPayload.message || '视频语音文案暂时未识别成功。'}`;
+        }
+      } catch (transcriptError) {
+        notice.value = `基础内容已提取完成；视频语音文案暂时未识别成功：${transcriptError.message || '网络请求失败。'}`;
+      }
+    }
+
+    setExtractProgress(uiText.value.progressFinalize, 94);
+    if (!notice.value) {
+      notice.value = endpoint === '/api/transcribe-link' || result.value?.transcript
+        ? '提取完成，已识别视频本身文案，并整理标题、素材和标签。'
+        : '提取完成，已整理标题、发布文案、标签和可用素材。';
+    }
     await loadMe();
   } catch (err) {
     error.value = err.message === 'Failed to fetch'
@@ -1048,6 +1189,7 @@ async function extract() {
       : err.message || '提取失败，请稍后重试。';
   } finally {
     loading.value = false;
+    extractProgress.value = null;
   }
 }
 
@@ -1063,6 +1205,7 @@ async function transcribeFile() {
 
   loading.value = true;
   try {
+    setExtractProgress('正在上传文件并识别语音内容...', 35);
     const form = new FormData();
     form.set('file', selectedFile.value);
     const response = await fetch('/api/transcribe', {
@@ -1075,12 +1218,14 @@ async function transcribeFile() {
       title: payload.data.title,
       text: payload.data.text
     };
+    setExtractProgress(uiText.value.progressFinalize, 94);
     notice.value = '转写完成，已提取音视频中的文案。';
     await loadMe();
   } catch (err) {
     error.value = err.message || '转写失败，请稍后重试。';
   } finally {
     loading.value = false;
+    extractProgress.value = null;
   }
 }
 
@@ -1348,7 +1493,9 @@ onMounted(loadMe);
           <input
             v-model="url"
             :placeholder="
-              toolPage?.type === 'video'
+              isHome
+                ? uiText.placeholders.auto
+                : toolPage?.type === 'video'
                 ? uiText.placeholders.video
                 : toolPage?.type === 'image'
                   ? uiText.placeholders.image
@@ -1411,6 +1558,24 @@ onMounted(loadMe);
         </div>
       </section>
 
+      <section v-if="loading && extractProgress" class="result-section progress-section" aria-live="polite">
+        <div class="progress-card">
+          <div class="section-title center">
+            <h2>提取结果</h2>
+          </div>
+          <div class="progress-panel">
+            <Loader2 class="spin progress-icon" :size="26" />
+            <div class="progress-copy">
+              <strong>{{ extractProgress.title }}</strong>
+              <span>{{ extractProgress.detail }}</span>
+            </div>
+            <div class="progress-track">
+              <span :style="{ width: `${extractProgress.percent}%` }"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section v-if="hasResultContent" class="result-section">
         <div class="result-card">
           <div class="section-title">
@@ -1450,7 +1615,7 @@ onMounted(loadMe);
               <p v-else>未识别到文案</p>
             </article>
 
-            <article v-if="toolPage?.type === 'text' && textMode === 'link' && publishedText" class="result-block">
+            <article v-if="shouldShowPublishedText" class="result-block">
               <span>平台发布文案</span>
               <p class="result-text">{{ publishedText }}</p>
             </article>
