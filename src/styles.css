@@ -1145,13 +1145,14 @@ h1 {
   font-weight: 800;
 }
 
-.footer-tools {
+.site-footer nav.footer-tools {
   column-gap: 18px;
   display: grid;
   grid-template-columns: repeat(2, minmax(135px, 1fr));
+  row-gap: 10px;
 }
 
-.footer-tools strong {
+.site-footer nav.footer-tools strong {
   grid-column: 1 / -1;
 }
 
@@ -1226,7 +1227,7 @@ h1 {
     display: none;
   }
 
-  .footer-tools {
+  .site-footer nav.footer-tools {
     grid-template-columns: 1fr;
   }
 }
