@@ -1117,7 +1117,12 @@ function resetResult() {
   <div class="site" :class="`theme-${pageTheme}`">
     <header class="site-header">
       <a class="logo" href="/" @click.prevent="navigate('/')">
-        <span>CP</span>
+        <span class="logo-mark" aria-hidden="true">
+          <span class="logo-sheet logo-sheet-back"></span>
+          <span class="logo-sheet logo-sheet-front">
+            <span class="logo-play"></span>
+          </span>
+        </span>
         <strong>{{ siteName }}</strong>
       </a>
       <nav class="desktop-nav" aria-label="主导航">

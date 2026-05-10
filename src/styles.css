@@ -106,24 +106,55 @@ a {
 .logo {
   align-items: center;
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
-.logo span {
+.logo-mark {
   align-items: center;
-  background: #111827;
-  border-radius: 8px;
-  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
+  border-radius: 12px;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
   display: inline-flex;
-  font-size: 12px;
-  font-weight: 900;
-  height: 38px;
+  height: 42px;
   justify-content: center;
-  width: 38px;
+  position: relative;
+  width: 42px;
+}
+
+.logo-sheet {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 5px;
+  display: block;
+  height: 21px;
+  position: absolute;
+  width: 17px;
+}
+
+.logo-sheet-back {
+  opacity: 0.55;
+  transform: translate(-5px, -3px) rotate(-7deg);
+}
+
+.logo-sheet-front {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  transform: translate(4px, 4px) rotate(4deg);
+}
+
+.logo-play {
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid #2563eb;
+  border-top: 5px solid transparent;
+  display: block;
+  height: 0;
+  margin-left: 2px;
+  width: 0;
 }
 
 .logo strong {
-  font-size: 18px;
+  font-size: 19px;
+  letter-spacing: 0;
 }
 
 .desktop-nav {
