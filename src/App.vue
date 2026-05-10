@@ -763,9 +763,13 @@ const shouldShowPublishedText = computed(() => {
   return normalizeCompareText(publishedText.value) !== normalizeCompareText(resultText.value);
 });
 const copyBlockTitle = computed(() => {
+  if (result.value?.transcriptSkipped) return '平台发布文案';
   if (isHome.value && result.value?.transcript) return '视频识别文案';
   if (isHome.value) return '作品文案';
-  if (toolPage.value?.type === 'text') return textMode.value === 'file' ? '视频/音频识别文案' : '视频识别文案';
+  if (toolPage.value?.type === 'text') {
+    if (textMode.value === 'file') return '视频/音频识别文案';
+    return result.value?.transcript ? '视频识别文案' : '平台发布文案';
+  }
   if (toolPage.value?.type === 'image') return '图文正文';
   if (toolPage.value?.type === 'article') return '文章正文';
   return '作品文案';
@@ -1180,6 +1184,9 @@ async function extract() {
             transcript: transcriptPayload.data?.transcript || transcriptPayload.data?.text || result.value?.transcript || '',
             publishedText: transcriptPayload.data?.publishedText || publishedText.value
           };
+          if (transcriptPayload.data?.transcriptSkipped) {
+            notice.value = transcriptPayload.data.transcriptSkipReason || transcriptPayload.message || '视频超过10分钟，已跳过视频文案识别。';
+          }
         } else if (transcriptPayload.data) {
           result.value = { ...result.value, ...transcriptPayload.data };
           notice.value = `基础内容已提取完成；${transcriptPayload.message || '视频语音文案暂时未识别成功。'}`;
@@ -1193,7 +1200,9 @@ async function extract() {
 
     setExtractProgress(uiText.value.progressFinalize, 94);
     if (!notice.value) {
-      notice.value = endpoint === '/api/transcribe-link' || result.value?.transcript
+      notice.value = result.value?.transcriptSkipped
+        ? result.value.transcriptSkipReason || '视频超过10分钟，已跳过视频文案识别。'
+        : endpoint === '/api/transcribe-link' || result.value?.transcript
         ? '提取完成，已识别视频本身文案，并整理标题、素材和标签。'
         : '提取完成，已整理标题、发布文案、标签和可用素材。';
     }

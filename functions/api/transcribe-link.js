@@ -1,6 +1,8 @@
 import { extractByUrl, json } from './_tikhub.js';
 import { recordUsage, requireQuota } from './_auth.js';
 
+const MAX_TRANSCRIBE_SECONDS = 10 * 60;
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   const tikhubKey = env.TIKHUB_API_KEY;
@@ -25,8 +27,29 @@ export async function onRequestPost(context) {
 
   try {
     const sourceData = await extractByUrl({ apiKey: tikhubKey, baseUrl: tikhubBaseUrl, url });
-    const subtitleUrl = getSubtitleLinks(sourceData)[0];
     const publishedText = getPublishedText(sourceData);
+    const durationSeconds = getDurationSeconds(sourceData);
+
+    if (durationSeconds > MAX_TRANSCRIBE_SECONDS) {
+      const message = '视频超过10分钟，已为你提取标题、发布文案和素材链接，但不生成视频本身文案。';
+      const data = {
+        ...sourceData,
+        publishedText,
+        transcript: '',
+        transcriptSkipped: true,
+        transcriptSkipReason: message,
+        durationSeconds
+      };
+      await recordUsage(context, quota, {
+        action: 'extract',
+        sourceUrl: url,
+        resultTitle: getPublishedText(sourceData) || sourceData?.title || null
+      });
+      const headers = quota.setCookie ? { 'Set-Cookie': quota.setCookie } : {};
+      return json({ ok: true, message, data }, 200, headers);
+    }
+
+    const subtitleUrl = getSubtitleLinks(sourceData)[0];
 
     if (subtitleUrl) {
       const subtitleText = await fetchSubtitleText(subtitleUrl);
@@ -150,6 +173,53 @@ function getVideoLinks(data) {
     links.push(...sortedVideos.map((item) => item.url));
   }
   return [...new Set(links)].filter(Boolean);
+}
+
+function getDurationSeconds(data) {
+  const detail = data?.aweme_detail || data?.itemInfo?.itemStruct || data?.note || data || {};
+  const video = detail.video || data?.video || {};
+  const candidates = [
+    data?.lengthSeconds,
+    data?.durationSeconds,
+    data?.duration,
+    data?.duration_sec,
+    data?.durationMs,
+    data?.duration_ms,
+    detail?.lengthSeconds,
+    detail?.durationSeconds,
+    detail?.duration,
+    detail?.duration_sec,
+    detail?.durationMs,
+    detail?.duration_ms,
+    video?.duration,
+    video?.duration_ms,
+    video?.durationMs,
+    video?.lengthSeconds,
+    data?.videos?.items?.[0]?.lengthMs
+  ];
+
+  for (const value of candidates) {
+    const seconds = normalizeDurationSeconds(value);
+    if (seconds > 0) return seconds;
+  }
+
+  return 0;
+}
+
+function normalizeDurationSeconds(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (/^\d+(?::\d+){1,2}$/.test(text)) {
+      return text.split(':').reduce((total, part) => total * 60 + Number(part), 0);
+    }
+    const numeric = Number(text.replace(/[^\d.]/g, ''));
+    if (!Number.isFinite(numeric)) return 0;
+    return numeric > 10000 ? numeric / 1000 : numeric;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return numeric > 10000 ? numeric / 1000 : numeric;
 }
 
 function getSubtitleLinks(data) {
