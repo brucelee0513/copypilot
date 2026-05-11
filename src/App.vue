@@ -41,6 +41,7 @@ const usage = ref(null);
 const records = ref([]);
 const adminUsers = ref([]);
 const adminTotal = ref(0);
+const adminPlans = ref([]);
 const adminLoading = ref(false);
 const adminMessage = ref('');
 const devCode = ref('');
@@ -434,7 +435,7 @@ const authButtonText = computed(() => currentUser.value ? currentUser.value.emai
 const isAdmin = computed(() => Boolean(currentUser.value?.isAdmin || currentUser.value?.plan === 'admin'));
 const currentPlanLabel = computed(() => formatPlanName(currentUser.value?.plan));
 
-const membershipPlans = [
+const defaultMembershipPlans = [
   {
     id: 'monthly',
     name: '月会员',
@@ -458,6 +459,7 @@ const membershipPlans = [
     features: ['长期会员权益', '优先支持新功能', '适合工作室长期使用']
   }
 ];
+const membershipPlans = ref(defaultMembershipPlans);
 
 function formatPlanName(plan) {
   const map = {
@@ -1317,6 +1319,7 @@ async function paste() {
 }
 
 async function loadMe() {
+  await loadMembershipPlans();
   if (isPublicFreeMode) return;
   try {
     const response = await fetch('/api/auth/me');
@@ -1326,7 +1329,10 @@ async function loadMe() {
       usage.value = payload.usage;
       if (payload.user) {
         await loadRecords();
-        if (payload.isAdmin) await loadAdminUsers();
+        if (payload.isAdmin) {
+          await loadAdminUsers();
+          await loadAdminPlans();
+        }
       }
     }
   } catch {
@@ -1345,6 +1351,13 @@ async function loadRecords() {
   if (payload.ok) records.value = payload.records || [];
 }
 
+async function loadMembershipPlans() {
+  const response = await fetch('/api/membership/plans').catch(() => null);
+  if (!response?.ok) return;
+  const payload = await response.json().catch(() => null);
+  if (payload?.ok && payload.plans?.length) membershipPlans.value = payload.plans;
+}
+
 async function loadAdminUsers() {
   if (!isAdmin.value) {
     adminUsers.value = [];
@@ -1361,6 +1374,61 @@ async function loadAdminUsers() {
     adminTotal.value = payload.total || adminUsers.value.length;
   } catch (err) {
     adminMessage.value = err.message || '用户列表加载失败。';
+  } finally {
+    adminLoading.value = false;
+  }
+}
+
+async function loadAdminPlans() {
+  if (!isAdmin.value) {
+    adminPlans.value = [];
+    return;
+  }
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/membership-plans');
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '会员参数加载失败。');
+    adminPlans.value = (payload.plans || []).map((plan) => ({
+      ...plan,
+      featuresText: (plan.features || []).join('\n')
+    }));
+  } catch (err) {
+    adminMessage.value = err.message || '会员参数加载失败。';
+  } finally {
+    adminLoading.value = false;
+  }
+}
+
+async function saveAdminPlans() {
+  if (!isAdmin.value) return;
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/membership-plans', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        plans: adminPlans.value.map((plan) => ({
+          ...plan,
+          features: String(plan.featuresText || '')
+            .split('\n')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        }))
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '会员参数保存失败。');
+    adminPlans.value = (payload.plans || []).map((plan) => ({
+      ...plan,
+      featuresText: (plan.features || []).join('\n')
+    }));
+    await loadMembershipPlans();
+    adminMessage.value = '会员参数已保存并生效。';
+  } catch (err) {
+    adminMessage.value = err.message || '会员参数保存失败。';
   } finally {
     adminLoading.value = false;
   }
@@ -1444,6 +1512,7 @@ async function logout() {
   records.value = [];
   adminUsers.value = [];
   adminTotal.value = 0;
+  adminPlans.value = [];
   await loadMe();
 }
 
@@ -1599,6 +1668,62 @@ onMounted(loadMe);
               </button>
             </div>
             <p v-if="adminMessage" class="auth-message">{{ adminMessage }}</p>
+            <div v-if="adminPlans.length" class="admin-plan-editor">
+              <div class="admin-heading compact">
+                <div>
+                  <h3>会员参数配置</h3>
+                  <p>这里保存后会写入数据库，前台会员卡片和后端额度限制会立即读取新配置。</p>
+                </div>
+                <button class="primary-button" :disabled="adminLoading" @click="saveAdminPlans">
+                  {{ adminLoading ? '保存中' : '保存会员参数' }}
+                </button>
+              </div>
+              <article v-for="plan in adminPlans" :key="plan.planKey" class="admin-plan-row">
+                <div class="admin-plan-title">
+                  <strong>{{ formatPlanName(plan.planKey) }}</strong>
+                  <label>
+                    <input v-model="plan.enabled" type="checkbox" />
+                    前台显示
+                  </label>
+                </div>
+                <label>
+                  名称
+                  <input v-model="plan.name" class="admin-input" />
+                </label>
+                <label>
+                  前台价格文案
+                  <input v-model="plan.priceLabel" class="admin-input" />
+                </label>
+                <label>
+                  价格，单位分
+                  <input v-model.number="plan.priceCents" class="admin-input" type="number" min="0" />
+                </label>
+                <label>
+                  后台内部额度
+                  <input v-model.number="plan.internalCredits" class="admin-input" type="number" min="0" />
+                </label>
+                <label>
+                  每日可用次数
+                  <input v-model.number="plan.dailyLimit" class="admin-input" type="number" min="1" />
+                </label>
+                <label>
+                  最长转写分钟
+                  <input v-model.number="plan.maxVideoMinutes" class="admin-input" type="number" min="1" max="240" />
+                </label>
+                <label>
+                  推荐角标
+                  <input v-model="plan.badge" class="admin-input" placeholder="例如：推荐" />
+                </label>
+                <label class="wide">
+                  套餐说明
+                  <input v-model="plan.description" class="admin-input" />
+                </label>
+                <label class="wide">
+                  权益，每行一条
+                  <textarea v-model="plan.featuresText" class="admin-textarea"></textarea>
+                </label>
+              </article>
+            </div>
             <article v-for="user in adminUsers" :key="user.id" class="admin-user-row">
               <div>
                 <strong>{{ user.email }}</strong>

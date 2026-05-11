@@ -1,4 +1,5 @@
 import { json } from './_tikhub.js';
+import { getDefaultPlanLimit, getMembershipPlan } from './_plans.js';
 
 const SESSION_COOKIE = 'copypilot_session';
 const OAUTH_STATE_COOKIE = 'copypilot_oauth_state';
@@ -78,7 +79,7 @@ export async function requireQuota(context, action = 'extract') {
 
   const user = await getSessionUser(request, env);
   if (user) {
-    const dailyLimit = getPlanLimit(user.plan);
+    const dailyLimit = await getPlanLimit(env.DB, user.plan);
     const usedToday = await getTodayUsage(env.DB, { userId: user.id, action });
     if (usedToday >= dailyLimit) {
       return { ok: false, status: 402, message: '今日可用额度已用完，请明天再试或升级会员。', user };
@@ -145,7 +146,7 @@ export async function recordUsage(context, quota, details = {}) {
 export async function getUsageSummary(env, request, user) {
   if (!env.DB) return null;
   const action = 'extract';
-  const dailyLimit = user ? getPlanLimit(user.plan) : 3;
+  const dailyLimit = user ? await getPlanLimit(env.DB, user.plan) : 3;
   const usedToday = user
     ? await getTodayUsage(env.DB, { userId: user.id, action })
     : await getTodayUsage(env.DB, { anonymousId: (await getAnonymousId(request)).id, action });
@@ -184,12 +185,15 @@ export function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`;
 }
 
-export function getPlanLimit(plan) {
-  if (plan === 'monthly' || plan === 'pro') return 100;
-  if (plan === 'yearly') return 300;
-  if (plan === 'lifetime') return 1000;
+export async function getPlanLimit(db, plan) {
   if (plan === 'admin') return 1000;
-  return 10;
+  try {
+    const config = await getMembershipPlan(db, plan);
+    if (config?.dailyLimit) return config.dailyLimit;
+  } catch {
+    // Fall back to code defaults if the plan table has not been created yet.
+  }
+  return getDefaultPlanLimit(plan);
 }
 
 export function todayKey() {

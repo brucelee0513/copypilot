@@ -1,5 +1,6 @@
 import { extractByUrl, json } from './_tikhub.js';
 import { recordUsage, requireQuota } from './_auth.js';
+import { getDefaultMaxVideoMinutes, getMembershipPlan } from './_plans.js';
 
 const MAX_TRANSCRIBE_SECONDS = 10 * 60;
 
@@ -29,9 +30,11 @@ export async function onRequestPost(context) {
     const sourceData = await extractByUrl({ apiKey: tikhubKey, baseUrl: tikhubBaseUrl, url });
     const publishedText = getPublishedText(sourceData);
     const durationSeconds = getDurationSeconds(sourceData);
+    const maxTranscribeSeconds = await getMaxTranscribeSeconds(context, quota);
 
-    if (durationSeconds > MAX_TRANSCRIBE_SECONDS) {
-      const message = '视频超过10分钟，已为你提取标题、发布文案和素材链接，但不生成视频本身文案。';
+    if (durationSeconds > maxTranscribeSeconds) {
+      const maxMinutes = Math.round(maxTranscribeSeconds / 60);
+      const message = `视频超过${maxMinutes}分钟，已为你提取标题、发布文案和素材链接，但不生成视频本身文案。`;
       const data = {
         ...sourceData,
         publishedText,
@@ -133,6 +136,19 @@ export async function onRequestPost(context) {
   } catch (error) {
     return json({ ok: false, message: error.message || '链接视频转写失败。' }, 502);
   }
+}
+
+async function getMaxTranscribeSeconds(context, quota) {
+  const plan = quota?.user?.plan;
+  if (!context.env.DB || !plan) return MAX_TRANSCRIBE_SECONDS;
+  if (plan === 'admin') return getDefaultMaxVideoMinutes('admin') * 60;
+  try {
+    const config = await getMembershipPlan(context.env.DB, plan);
+    if (config?.maxVideoMinutes) return config.maxVideoMinutes * 60;
+  } catch {
+    // Use defaults when the editable plan table is unavailable.
+  }
+  return getDefaultMaxVideoMinutes(plan) * 60;
 }
 
 async function transcribeBlob({ apiKey, model, blob, filename }) {

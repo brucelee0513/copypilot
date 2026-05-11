@@ -560,6 +560,10 @@ a {
   grid-template-columns: 1fr auto;
 }
 
+.admin-heading.compact {
+  margin-top: 10px;
+}
+
 .admin-heading h3,
 .admin-heading p {
   margin: 0;
@@ -579,13 +583,65 @@ a {
   padding: 10px;
 }
 
+.admin-plan-editor {
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.admin-plan-row {
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.admin-plan-row label {
+  color: #475467;
+  display: grid;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+}
+
+.admin-plan-title,
+.admin-plan-row .wide {
+  grid-column: 1 / -1;
+}
+
+.admin-plan-title {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.admin-plan-title label {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
 .admin-select,
-.admin-credit {
+.admin-credit,
+.admin-input,
+.admin-textarea {
   border: 1px solid #c9d5e7;
   border-radius: 8px;
   min-height: 40px;
   padding: 0 10px;
   width: 100%;
+}
+
+.admin-textarea {
+  min-height: 82px;
+  padding: 10px;
+  resize: vertical;
 }
 
 .primary-button {
@@ -1543,6 +1599,7 @@ h1 {
   }
 
   .admin-heading,
+  .admin-plan-row,
   .admin-user-row {
     align-items: stretch;
     grid-template-columns: 1fr;
