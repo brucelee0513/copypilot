@@ -42,6 +42,9 @@ const records = ref([]);
 const adminUsers = ref([]);
 const adminTotal = ref(0);
 const adminPlans = ref([]);
+const siteContent = ref(null);
+const adminSiteContent = ref(null);
+const adminCopyLang = ref('zh');
 const adminLoading = ref(false);
 const adminMessage = ref('');
 const devCode = ref('');
@@ -416,13 +419,34 @@ const uiText = computed(() => {
     hot: 'Popular tools',
     info: 'Info'
   };
-  return lang.value === 'en' ? en : zh;
+  const base = lang.value === 'en' ? en : zh;
+  return mergeUiText(base, siteContent.value?.[lang.value]?.uiText);
 });
+
+function mergeUiText(base, override) {
+  if (!override) return base;
+  return {
+    ...base,
+    ...override,
+    nav: Array.isArray(override.nav) && override.nav.length ? override.nav : base.nav,
+    placeholders: {
+      ...base.placeholders,
+      ...(override.placeholders || {})
+    }
+  };
+}
 
 const toolPage = computed(() => {
   const page = pageMap[currentPath.value];
-  if (!page || lang.value !== 'en') return page;
-  return { ...page, ...enPageMap[currentPath.value] };
+  if (!page) return page;
+  const localizedPage = lang.value === 'en' ? { ...page, ...(enPageMap[currentPath.value] || {}) } : page;
+  const editablePage = siteContent.value?.[lang.value]?.toolPages?.[currentPath.value] || {};
+  return {
+    ...localizedPage,
+    ...editablePage,
+    type: page.type,
+    theme: page.theme
+  };
 });
 const isHome = computed(() => !toolPage.value);
 const pageTheme = computed(() => toolPage.value?.theme || 'blue');
@@ -473,34 +497,53 @@ function formatPlanName(plan) {
   return map[plan] || '免费版';
 }
 
-const featureCards = computed(() => lang.value === 'en'
-  ? [
+const featureIcons = [BadgeCheck, Captions, Image, Sparkles];
+
+const featureCards = computed(() => {
+  const editableCards = siteContent.value?.[lang.value]?.featureCards;
+  if (Array.isArray(editableCards) && editableCards.length) {
+    return editableCards.map((item, index) => ({
+      title: item.title,
+      text: item.text,
+      icon: featureIcons[index % featureIcons.length]
+    }));
+  }
+  return lang.value === 'en'
+    ? [
       { title: '50+ platforms', text: 'Supports Douyin, Xiaohongshu, TikTok, Kuaishou, and more content platforms.', icon: BadgeCheck },
       { title: 'Caption extraction', text: 'Collect titles, captions, author details, and media links automatically.', icon: Captions },
       { title: 'Image extraction', text: 'Useful for image posts, ecommerce assets, and content breakdowns.', icon: Image },
       { title: 'Smart routing', text: 'Detects link types and routes them to the right extraction workflow.', icon: Sparkles }
     ]
-  : [
+    : [
       { title: '50+平台支持', text: '覆盖抖音、小红书、TikTok、快手等主流内容平台。', icon: BadgeCheck },
       { title: '视频文案提取', text: '自动整理视频标题、正文、作者信息和素材链接。', icon: Captions },
       { title: '图片内容提取', text: '适合图文笔记、电商素材和内容拆解。', icon: Image },
       { title: 'AI智能识别', text: '自动识别链接类型，减少手动选择和复制整理。', icon: Sparkles }
-    ]);
+    ];
+});
 
-const steps = computed(() => lang.value === 'en'
-  ? [
+const steps = computed(() => {
+  const editableSteps = siteContent.value?.[lang.value]?.steps;
+  if (Array.isArray(editableSteps) && editableSteps.length) return editableSteps;
+  return lang.value === 'en'
+    ? [
       ['Copy a link', 'Copy a shared post or article link from a supported platform.'],
       ['Paste and extract', 'Paste the link into CopyPilot and start extraction.'],
       ['Use the result', 'Copy captions, download images, preview videos, or reuse article layouts.']
     ]
-  : [
+    : [
       ['复制链接', '从抖音、小红书等平台复制作品分享链接。'],
       ['粘贴提取', '把链接粘贴到输入框，点击开始提取。'],
       ['复制结果', '获取文案、图片或视频素材链接，继续整理使用。']
-    ]);
+    ];
+});
 
-const faqs = computed(() => lang.value === 'en'
-  ? [
+const faqs = computed(() => {
+  const editableFaqs = siteContent.value?.[lang.value]?.faqs;
+  if (Array.isArray(editableFaqs) && editableFaqs.length) return editableFaqs;
+  return lang.value === 'en'
+    ? [
       ['Is CopyPilot completely free? Are there usage limits?', 'CopyPilot is currently free for core extraction workflows. You can extract captions, videos, images, audio, and article content directly from the browser.'],
       ['Which platforms are supported? Are overseas platforms supported?', 'CopyPilot targets 50+ mainstream platforms, including Douyin, Xiaohongshu, Kuaishou, Bilibili, Weibo, WeChat articles, TikTok, YouTube, Instagram, Lemon8, and more. Publicly accessible links usually work best.'],
       ['How accurate is video speech-to-text? Which languages are supported?', 'Speech recognition works best when the audio is clear. Chinese, English, Japanese, Korean, and other common languages are supported, while heavy background noise, music, or overlapping voices may reduce accuracy.'],
@@ -512,7 +555,7 @@ const faqs = computed(() => lang.value === 'en'
       ['Is CopyPilot safe? Will my information be exposed?', 'CopyPilot uses HTTPS. Extraction is handled for the requested task only, and public pages do not require account information. Avoid submitting private or sensitive links.'],
       ['Can I use it on mobile and desktop?', 'Yes. CopyPilot is responsive and works in modern browsers on phones, tablets, Windows, and Mac. No app download is required.']
     ]
-  : [
+    : [
       ['CopyPilot 完全免费吗？有使用次数限制吗？', 'CopyPilot 当前公开版本免费使用，可以直接提取视频文案、下载视频、提取图片、音频和文章内容。核心工具打开页面即可使用。'],
       ['支持哪些视频平台？是否支持海外平台？', 'CopyPilot 支持 50+ 主流内容平台，包括抖音、小红书、快手、B站、微博、公众号文章、TikTok、YouTube、Instagram、Lemon8 等。只要是公开可访问的作品链接，通常都可以尝试提取。'],
       ['视频文案识别的准确率如何？支持哪些语言？', '音频清晰时，语音转文字效果会更好。当前支持中文、英语、日语、韩语等常见语言。如果视频声音较小、背景噪音较大、多人同时说话或音乐较重，识别准确度可能会受到影响。'],
@@ -523,7 +566,8 @@ const faqs = computed(() => lang.value === 'en'
       ['为什么有些视频无法提取或提取失败？', '常见原因包括作品已删除、内容设为私密、链接过期、平台限制、接口临时变化、格式暂不支持或网络连接异常。遇到这种情况，可以检查链接是否正确、作品是否公开可见，或稍后重试。'],
       ['使用 CopyPilot 安全吗？会泄露我的信息吗？', 'CopyPilot 使用 HTTPS 加密传输，公开工具页面不需要提交个人资料。提取请求只用于完成当前任务。请不要提交私密、敏感或没有授权的链接内容。'],
       ['手机和电脑端都可以使用吗？', '可以。CopyPilot 采用响应式设计，支持手机、平板和电脑浏览器。无论使用 iOS、Android、Windows 还是 Mac，都可以直接在浏览器中打开使用，无需下载 App。']
-    ]);
+    ];
+});
 
 const seoToolGroups = computed(() => lang.value === 'en'
   ? [
@@ -1319,6 +1363,7 @@ async function paste() {
 }
 
 async function loadMe() {
+  await loadSiteContent();
   await loadMembershipPlans();
   if (isPublicFreeMode) return;
   try {
@@ -1332,12 +1377,20 @@ async function loadMe() {
         if (payload.isAdmin) {
           await loadAdminUsers();
           await loadAdminPlans();
+          await loadAdminSiteContent();
         }
       }
     }
   } catch {
     // 登录状态不影响主工具使用。
   }
+}
+
+async function loadSiteContent() {
+  const response = await fetch('/api/site/content').catch(() => null);
+  if (!response?.ok) return;
+  const payload = await response.json().catch(() => null);
+  if (payload?.ok && payload.content) siteContent.value = payload.content;
 }
 
 async function loadRecords() {
@@ -1434,6 +1487,108 @@ async function saveAdminPlans() {
   }
 }
 
+async function loadAdminSiteContent() {
+  if (!isAdmin.value) {
+    adminSiteContent.value = null;
+    return;
+  }
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/site-content');
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '站点文案加载失败。');
+    adminSiteContent.value = normalizeEditableSiteContent(payload.content);
+  } catch (err) {
+    adminMessage.value = err.message || '站点文案加载失败。';
+  } finally {
+    adminLoading.value = false;
+  }
+}
+
+async function saveAdminSiteContent() {
+  if (!isAdmin.value || !adminSiteContent.value) return;
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/site-content', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: serializeEditableSiteContent(adminSiteContent.value) })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '站点文案保存失败。');
+    adminSiteContent.value = normalizeEditableSiteContent(payload.content);
+    siteContent.value = payload.content;
+    adminMessage.value = '站点文案已保存并生效。';
+  } catch (err) {
+    adminMessage.value = err.message || '站点文案保存失败。';
+  } finally {
+    adminLoading.value = false;
+  }
+}
+
+function normalizeEditableSiteContent(content) {
+  const clone = structuredClone(content || {});
+  for (const locale of ['zh', 'en']) {
+    clone[locale] ||= {};
+    clone[locale].uiText ||= {};
+    clone[locale].uiText.placeholders ||= {};
+    clone[locale].toolPages = normalizeEditableToolPages(locale, clone[locale].toolPages);
+    clone[locale].featureCards = (clone[locale].featureCards || []).map((item) => ({
+      title: item.title || '',
+      text: item.text || ''
+    }));
+    clone[locale].steps = (clone[locale].steps || []).map(([title, text]) => ({ title: title || '', text: text || '' }));
+    clone[locale].faqs = (clone[locale].faqs || []).map(([question, answer]) => ({ question: question || '', answer: answer || '' }));
+  }
+  return clone;
+}
+
+function serializeEditableSiteContent(content) {
+  const output = structuredClone(content || {});
+  for (const locale of ['zh', 'en']) {
+    output[locale] ||= {};
+    output[locale].steps = (output[locale].steps || []).map((item) => [item.title || '', item.text || '']);
+    output[locale].faqs = (output[locale].faqs || []).map((item) => [item.question || '', item.answer || '']);
+  }
+  return output;
+}
+
+function normalizeEditableToolPages(locale, pages) {
+  const defaults = defaultEditableToolPages(locale);
+  const output = {};
+  for (const [path, page] of Object.entries(defaults)) {
+    output[path] = {
+      ...page,
+      ...(pages?.[path] || {})
+    };
+  }
+  return output;
+}
+
+function defaultEditableToolPages(locale) {
+  const output = {};
+  for (const [path, page] of Object.entries(pageMap)) {
+    const localizedPage = locale === 'en' ? { ...page, ...(enPageMap[path] || {}) } : page;
+    output[path] = {
+      badge: localizedPage.badge || '',
+      title: localizedPage.title || '',
+      subtitle: localizedPage.subtitle || '',
+      seoTitle: localizedPage.seoTitle || ''
+    };
+  }
+  return output;
+}
+
+function addEditableItem(list, item) {
+  list.push(item);
+}
+
+function removeEditableItem(list, index) {
+  list.splice(index, 1);
+}
+
 async function saveAdminUser(user) {
   if (!isAdmin.value || !user?.id) return;
   adminLoading.value = true;
@@ -1513,6 +1668,7 @@ async function logout() {
   adminUsers.value = [];
   adminTotal.value = 0;
   adminPlans.value = [];
+  adminSiteContent.value = null;
   await loadMe();
 }
 
@@ -1723,6 +1879,217 @@ onMounted(loadMe);
                   <textarea v-model="plan.featuresText" class="admin-textarea"></textarea>
                 </label>
               </article>
+            </div>
+            <div v-if="adminSiteContent" class="admin-copy-editor">
+              <div class="admin-heading compact">
+                <div>
+                  <h3>站点文案管理</h3>
+                  <p>这里改的是前台运营文案，保存后首页、FAQ、按钮和 Footer 会立即读取新文案。</p>
+                </div>
+                <button class="primary-button" :disabled="adminLoading" @click="saveAdminSiteContent">
+                  {{ adminLoading ? '保存中' : '保存站点文案' }}
+                </button>
+              </div>
+              <div class="copy-lang-tabs">
+                <button
+                  type="button"
+                  :class="{ active: adminCopyLang === 'zh' }"
+                  @click="adminCopyLang = 'zh'"
+                >中文</button>
+                <button
+                  type="button"
+                  :class="{ active: adminCopyLang === 'en' }"
+                  @click="adminCopyLang = 'en'"
+                >English</button>
+              </div>
+              <div class="admin-copy-grid">
+                <label>
+                  导航：首页
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.nav[0]" class="admin-input" />
+                </label>
+                <label>
+                  导航：视频
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.nav[1]" class="admin-input" />
+                </label>
+                <label>
+                  导航：文案
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.nav[2]" class="admin-input" />
+                </label>
+                <label>
+                  导航：图文
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.nav[3]" class="admin-input" />
+                </label>
+                <label>
+                  导航：文章
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.nav[4]" class="admin-input" />
+                </label>
+                <label>
+                  登录按钮
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.login" class="admin-input" />
+                </label>
+                <label>
+                  首页小标签
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.heroBadge" class="admin-input" />
+                </label>
+                <label>
+                  首页大标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.heroTitle" class="admin-input" />
+                </label>
+                <label class="wide">
+                  首页小字
+                  <textarea v-model="adminSiteContent[adminCopyLang].uiText.heroSubtitle" class="admin-textarea"></textarea>
+                </label>
+                <label>
+                  开始按钮
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.start" class="admin-input" />
+                </label>
+                <label>
+                  粘贴按钮
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.paste" class="admin-input" />
+                </label>
+                <label>
+                  清空按钮
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.clear" class="admin-input" />
+                </label>
+                <label>
+                  提取中按钮
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.loading" class="admin-input" />
+                </label>
+                <label>
+                  结果小标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.resultLabel" class="admin-input" />
+                </label>
+                <label class="wide">
+                  首页输入框提示
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.placeholders.auto" class="admin-input" />
+                </label>
+                <label>
+                  视频页输入提示
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.placeholders.video" class="admin-input" />
+                </label>
+                <label>
+                  文案页输入提示
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.placeholders.text" class="admin-input" />
+                </label>
+                <label>
+                  图文页输入提示
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.placeholders.image" class="admin-input" />
+                </label>
+                <label>
+                  文章页输入提示
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.placeholders.article" class="admin-input" />
+                </label>
+                <label>
+                  进度标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressTitle" class="admin-input" />
+                </label>
+                <label>
+                  识别进度
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressDetect" class="admin-input" />
+                </label>
+                <label>
+                  提取进度
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressExtract" class="admin-input" />
+                </label>
+                <label>
+                  转写进度
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressTranscribe" class="admin-input" />
+                </label>
+                <label>
+                  整理进度
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressFinalize" class="admin-input" />
+                </label>
+                <label>
+                  上传进度
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.progressUpload" class="admin-input" />
+                </label>
+                <label>
+                  功能区小标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.featureEyebrow" class="admin-input" />
+                </label>
+                <label>
+                  功能区标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.featureTitle" class="admin-input" />
+                </label>
+                <label>
+                  步骤区标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.stepsTitle" class="admin-input" />
+                </label>
+                <label>
+                  FAQ 标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.faqTitle" class="admin-input" />
+                </label>
+                <label>
+                  FAQ 副标题
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.faqSubtitle" class="admin-input" />
+                </label>
+                <label>
+                  Footer 简介
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.footerDesc" class="admin-input" />
+                </label>
+                <label>
+                  Footer 核心功能
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.core" class="admin-input" />
+                </label>
+                <label>
+                  Footer 热门工具
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.hot" class="admin-input" />
+                </label>
+                <label>
+                  Footer 基础信息
+                  <input v-model="adminSiteContent[adminCopyLang].uiText.info" class="admin-input" />
+                </label>
+              </div>
+              <div class="copy-list-block">
+                <div class="admin-heading compact">
+                  <h3>工具内页标题</h3>
+                  <p>这里控制每个工具页的页面小标签、大标题、小字和 SEO 标题。</p>
+                </div>
+                <article
+                  v-for="(page, path) in adminSiteContent[adminCopyLang].toolPages"
+                  :key="path"
+                  class="copy-page-row"
+                >
+                  <strong>{{ path }}</strong>
+                  <input v-model="page.badge" class="admin-input" placeholder="小标签" />
+                  <input v-model="page.title" class="admin-input" placeholder="页面大标题" />
+                  <textarea v-model="page.subtitle" class="admin-textarea" placeholder="页面说明"></textarea>
+                  <input v-model="page.seoTitle" class="admin-input" placeholder="浏览器标题 / SEO 标题" />
+                </article>
+              </div>
+              <div class="copy-list-block">
+                <div class="admin-heading compact">
+                  <h3>功能卡片</h3>
+                  <button class="secondary-button" type="button" @click="addEditableItem(adminSiteContent[adminCopyLang].featureCards, { title: '', text: '' })">新增</button>
+                </div>
+                <article v-for="(card, index) in adminSiteContent[adminCopyLang].featureCards" :key="`card-${index}`" class="copy-row">
+                  <input v-model="card.title" class="admin-input" placeholder="标题" />
+                  <input v-model="card.text" class="admin-input" placeholder="说明" />
+                  <button class="secondary-button" type="button" @click="removeEditableItem(adminSiteContent[adminCopyLang].featureCards, index)">删除</button>
+                </article>
+              </div>
+              <div class="copy-list-block">
+                <div class="admin-heading compact">
+                  <h3>使用步骤</h3>
+                  <button class="secondary-button" type="button" @click="addEditableItem(adminSiteContent[adminCopyLang].steps, { title: '', text: '' })">新增</button>
+                </div>
+                <article v-for="(step, index) in adminSiteContent[adminCopyLang].steps" :key="`step-${index}`" class="copy-row">
+                  <input v-model="step.title" class="admin-input" placeholder="步骤标题" />
+                  <input v-model="step.text" class="admin-input" placeholder="步骤说明" />
+                  <button class="secondary-button" type="button" @click="removeEditableItem(adminSiteContent[adminCopyLang].steps, index)">删除</button>
+                </article>
+              </div>
+              <div class="copy-list-block">
+                <div class="admin-heading compact">
+                  <h3>常见问题</h3>
+                  <button class="secondary-button" type="button" @click="addEditableItem(adminSiteContent[adminCopyLang].faqs, { question: '', answer: '' })">新增</button>
+                </div>
+                <article v-for="(faq, index) in adminSiteContent[adminCopyLang].faqs" :key="`faq-${index}`" class="copy-row faq-copy-row">
+                  <input v-model="faq.question" class="admin-input" placeholder="问题" />
+                  <textarea v-model="faq.answer" class="admin-textarea" placeholder="答案"></textarea>
+                  <button class="secondary-button" type="button" @click="removeEditableItem(adminSiteContent[adminCopyLang].faqs, index)">删除</button>
+                </article>
+              </div>
             </div>
             <article v-for="user in adminUsers" :key="user.id" class="admin-user-row">
               <div>

@@ -591,6 +591,39 @@ a {
   padding: 12px;
 }
 
+.admin-copy-editor {
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 12px;
+}
+
+.copy-lang-tabs {
+  background: #eef3f9;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.copy-lang-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: #475467;
+  font-weight: 900;
+  min-height: 38px;
+}
+
+.copy-lang-tabs button.active {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.admin-copy-grid,
 .admin-plan-row {
   background: #f8fafc;
   border: 1px solid #dbe4f0;
@@ -601,6 +634,7 @@ a {
   padding: 12px;
 }
 
+.admin-copy-grid label,
 .admin-plan-row label {
   color: #475467;
   display: grid;
@@ -609,6 +643,7 @@ a {
   gap: 6px;
 }
 
+.admin-copy-grid .wide,
 .admin-plan-title,
 .admin-plan-row .wide {
   grid-column: 1 / -1;
@@ -642,6 +677,48 @@ a {
   min-height: 82px;
   padding: 10px;
   resize: vertical;
+}
+
+.copy-list-block {
+  display: grid;
+  gap: 10px;
+}
+
+.copy-row {
+  align-items: start;
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr) auto;
+  padding: 10px;
+}
+
+.faq-copy-row {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto;
+}
+
+.copy-page-row {
+  align-items: start;
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 120px minmax(0, 0.8fr) minmax(0, 1fr);
+  padding: 10px;
+}
+
+.copy-page-row strong,
+.copy-page-row textarea,
+.copy-page-row input[placeholder*="SEO"] {
+  grid-column: 1 / -1;
+}
+
+.copy-page-row strong {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .primary-button {
@@ -1599,7 +1676,11 @@ h1 {
   }
 
   .admin-heading,
+  .admin-copy-grid,
   .admin-plan-row,
+  .copy-page-row,
+  .copy-row,
+  .faq-copy-row,
   .admin-user-row {
     align-items: stretch;
     grid-template-columns: 1fr;
