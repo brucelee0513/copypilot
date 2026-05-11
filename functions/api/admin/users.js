@@ -74,5 +74,5 @@ export async function onRequestPatch(context) {
 
 function normalizePlan(value) {
   const plan = String(value || '').trim().toLowerCase();
-  return ['free', 'pro', 'admin'].includes(plan) ? plan : '';
+  return ['free', 'monthly', 'yearly', 'lifetime', 'pro', 'admin'].includes(plan) ? plan : '';
 }

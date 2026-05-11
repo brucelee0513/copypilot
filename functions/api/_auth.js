@@ -81,10 +81,10 @@ export async function requireQuota(context, action = 'extract') {
     const dailyLimit = getPlanLimit(user.plan);
     const usedToday = await getTodayUsage(env.DB, { userId: user.id, action });
     if (usedToday >= dailyLimit) {
-      return { ok: false, status: 402, message: `今日免费额度已用完，当前套餐每天可用 ${dailyLimit} 次。`, user };
+      return { ok: false, status: 402, message: '今日可用额度已用完，请明天再试或升级会员。', user };
     }
     if (Number(user.credits || 0) <= 0) {
-      return { ok: false, status: 402, message: '账号 credits 已用完，请联系管理员增加额度。', user };
+      return { ok: false, status: 402, message: '当前会员额度已用完，请升级会员或联系管理员。', user };
     }
     return { ok: true, user, anonymousId: null, setCookie: null };
   }
@@ -185,7 +185,9 @@ export function makeId(prefix) {
 }
 
 export function getPlanLimit(plan) {
-  if (plan === 'pro') return 100;
+  if (plan === 'monthly' || plan === 'pro') return 100;
+  if (plan === 'yearly') return 300;
+  if (plan === 'lifetime') return 1000;
   if (plan === 'admin') return 1000;
   return 10;
 }
