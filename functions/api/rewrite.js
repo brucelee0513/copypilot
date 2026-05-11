@@ -35,12 +35,18 @@ export async function onRequestPost(context) {
 }
 
 async function rewriteWithSiliconFlow({ apiKey, model, title, text, images, template }) {
-  const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+  let response;
+
+  try {
+    response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
+    signal: controller.signal,
     body: JSON.stringify({
       model,
       temperature: 0.7,
@@ -69,7 +75,15 @@ async function rewriteWithSiliconFlow({ apiKey, model, title, text, images, temp
         }
       ]
     })
-  });
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('AI 二创超时，已生成本地排版稿。');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
