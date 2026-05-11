@@ -25,6 +25,9 @@ const url = ref('');
 const fileMode = ref('video');
 const textMode = ref('link');
 const articleView = ref('text');
+const articleTemplate = ref('clean');
+const articleDraftHtml = ref('');
+const articleRewriteLoading = ref(false);
 const selectedFile = ref(null);
 const loading = ref(false);
 const error = ref('');
@@ -92,6 +95,14 @@ const pageMap = {
     type: 'article',
     theme: 'green',
     seoTitle: '公众号文章提取工具 - 在线提取微信公众号文章'
+  },
+  '/article-studio': {
+    badge: '公众号二创排版',
+    title: '公众号文章二创排版工具',
+    subtitle: '提取公众号文章正文和图片，AI 二创后生成可编辑的公众号排版稿，复制后可粘贴到公众号后台。',
+    type: 'article',
+    theme: 'green',
+    seoTitle: '公众号文章二创排版工具 - AI 改写并复制公众号格式'
   },
   '/xiaohongshu': {
     badge: '提取文案',
@@ -321,6 +332,7 @@ const enPageMap = {
   '/image-text': { badge: 'Image post extractor', title: 'Image & Caption Extractor', subtitle: 'Extract images, titles, captions, and tags from image posts.' },
   '/article': { badge: 'Article extractor', title: 'Article Extraction Tool', subtitle: 'Extract article titles, body text, original images, and basic metadata from article links.' },
   '/wechat-article': { badge: 'WeChat article extractor', title: 'WeChat Article Extractor', subtitle: 'Paste a WeChat article link to extract title, body text, original images, and metadata.' },
+  '/article-studio': { badge: 'WeChat article studio', title: 'WeChat Article Rewrite Studio', subtitle: 'Extract, rewrite, format, edit, and copy WeChat-ready article layouts.' },
   '/douyin-video-download': { badge: 'Douyin video download', title: 'Douyin Video Downloader', subtitle: 'Extract Douyin video previews, download links, titles, captions, and hashtags.' },
   '/tiktok-video-download': { badge: 'TikTok video download', title: 'TikTok Video Downloader', subtitle: 'Extract TikTok videos, captions, post text, and tags for content workflows.' },
   '/kuaishou-video-download': { badge: 'Kuaishou video download', title: 'Kuaishou Video Downloader', subtitle: 'Extract Kuaishou videos, titles, captions, and hashtags from shared links.' },
@@ -459,6 +471,18 @@ const authButtonText = computed(() => currentUser.value ? currentUser.value.emai
 const isAdmin = computed(() => Boolean(currentUser.value?.isAdmin || currentUser.value?.plan === 'admin'));
 const currentPlanLabel = computed(() => formatPlanName(currentUser.value?.plan));
 
+const articleTemplates = computed(() => lang.value === 'en'
+  ? [
+      { id: 'clean', name: 'Clean' },
+      { id: 'knowledge', name: 'Knowledge' },
+      { id: 'marketing', name: 'Marketing' }
+    ]
+  : [
+      { id: 'clean', name: '极简白底' },
+      { id: 'knowledge', name: '干货教程' },
+      { id: 'marketing', name: '营销种草' }
+    ]);
+
 const defaultMembershipPlans = [
   {
     id: 'monthly',
@@ -588,6 +612,7 @@ const seoToolGroups = computed(() => lang.value === 'en'
       ] },
       { title: 'Article platforms', links: [
         ['/wechat-article', 'WeChat article extractor'],
+        ['/article-studio', 'WeChat rewrite studio'],
         ['/zhihu-article', 'Zhihu article extractor'],
         ['/web-article', 'Web article extractor']
       ] },
@@ -616,6 +641,7 @@ const seoToolGroups = computed(() => lang.value === 'en'
       ] },
       { title: '文章平台', links: [
         ['/wechat-article', '公众号文章提取'],
+        ['/article-studio', '公众号二创排版'],
         ['/zhihu-article', '知乎文章提取'],
         ['/web-article', '网页文章提取']
       ] },
@@ -896,25 +922,66 @@ const articleBlocks = computed(() => {
 });
 
 const articleCopyHtml = computed(() => {
-  if (!articleBlocks.value.length) return '';
-  const title = escapeHtml(resultTitle.value || '');
-  const body = articleBlocks.value.map((block) => {
+  if (articleDraftHtml.value) return articleDraftHtml.value;
+  return buildWechatArticleHtml(articleBlocks.value, {
+    title: resultTitle.value,
+    template: articleTemplate.value
+  });
+});
+
+function buildWechatArticleHtml(blocks, { title = '', template = 'clean' } = {}) {
+  if (!blocks?.length && !title) return '';
+  const style = getWechatTemplateStyle(template);
+  const safeTitle = escapeHtml(title || '');
+  const body = (blocks || []).map((block) => {
     if (block.type === 'heading') {
-      return `<h2 style="font-size:18px;line-height:1.6;margin:28px 0 12px;font-weight:700;">${escapeHtml(block.text)}</h2>`;
+      return `<h2 style="${style.heading}">${escapeHtml(block.text)}</h2>`;
     }
     if (block.type === 'image') {
-      return `<p style="margin:20px 0;text-align:center;"><img src="${escapeHtml(block.src)}" style="max-width:100%;height:auto;" /></p>`;
+      return `<p style="${style.imageWrap}"><img src="${escapeHtml(block.src)}" style="max-width:100%;height:auto;border-radius:${style.imageRadius};" /></p>`;
     }
-    return `<p style="font-size:16px;line-height:1.9;margin:14px 0;color:#111;">${escapeHtml(block.text).replace(/\n/g, '<br>')}</p>`;
+    return `<p style="${style.paragraph}">${escapeHtml(block.text).replace(/\n/g, '<br>')}</p>`;
   }).join('\n');
 
   return [
-    '<section style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#111;">',
-    title ? `<h1 style="font-size:22px;line-height:1.5;margin:0 0 22px;font-weight:800;">${title}</h1>` : '',
+    `<section style="${style.section}">`,
+    safeTitle ? `<h1 style="${style.title}">${safeTitle}</h1>` : '',
     body,
     '</section>'
   ].filter(Boolean).join('\n');
-});
+}
+
+function getWechatTemplateStyle(template) {
+  const base = {
+    section: 'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#111827;background:#ffffff;',
+    title: 'font-size:22px;line-height:1.5;margin:0 0 22px;font-weight:800;color:#111827;',
+    heading: 'font-size:18px;line-height:1.6;margin:28px 0 12px;font-weight:800;color:#111827;',
+    paragraph: 'font-size:16px;line-height:1.95;margin:14px 0;color:#1f2937;',
+    imageWrap: 'margin:20px 0;text-align:center;',
+    imageRadius: '8px'
+  };
+  if (template === 'knowledge') {
+    return {
+      section: 'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#162033;background:#ffffff;',
+      title: 'font-size:22px;line-height:1.5;margin:0 0 20px;font-weight:800;color:#0f172a;border-left:5px solid #2563eb;padding-left:12px;',
+      heading: 'font-size:18px;line-height:1.6;margin:30px 0 12px;font-weight:800;color:#1d4ed8;background:#eff6ff;border-radius:8px;padding:8px 12px;',
+      paragraph: 'font-size:16px;line-height:1.95;margin:14px 0;color:#1f2937;',
+      imageWrap: 'margin:22px 0;text-align:center;',
+      imageRadius: '8px'
+    };
+  }
+  if (template === 'marketing') {
+    return {
+      section: 'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#201018;background:#ffffff;',
+      title: 'font-size:23px;line-height:1.45;margin:0 0 22px;font-weight:900;color:#be185d;',
+      heading: 'font-size:18px;line-height:1.6;margin:28px 0 12px;font-weight:800;color:#be185d;border-bottom:2px solid #fbcfe8;padding-bottom:6px;',
+      paragraph: 'font-size:16px;line-height:1.95;margin:14px 0;color:#3f2430;',
+      imageWrap: 'margin:22px 0;text-align:center;',
+      imageRadius: '10px'
+    };
+  }
+  return base;
+}
 
 function findPrimaryDetail(data) {
   if (!data) return null;
@@ -1183,7 +1250,7 @@ function navigate(path) {
   if (path === '/video-to-text') fileMode.value = 'video';
   if (path === '/local-video-to-text') fileMode.value = 'video';
   if (path === '/text') textMode.value = 'link';
-  if (path === '/article' || path === '/wechat-article') articleView.value = 'text';
+  if (path === '/article' || path === '/wechat-article' || path === '/article-studio') articleView.value = 'text';
   resetResult();
   updateMeta();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1256,6 +1323,13 @@ async function extract() {
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.message || '提取失败');
     result.value = payload.data;
+    if (toolPage.value?.type === 'article') {
+      articleView.value = 'layout';
+      articleDraftHtml.value = buildWechatArticleHtml(articleBlocks.value, {
+        title: resultTitle.value,
+        template: articleTemplate.value
+      });
+    }
 
     if (smartHome && videoLinks.value.length) {
       setExtractProgress(uiText.value.progressTranscribe, 72);
@@ -1686,10 +1760,7 @@ async function copyText(value) {
 
 async function copyArticleHtml() {
   if (!articleCopyHtml.value) return;
-  const plainText = articleBlocks.value
-    .map((block) => block.type === 'image' ? `[图片] ${block.src}` : block.text)
-    .filter(Boolean)
-    .join('\n\n');
+  const plainText = stripHtml(articleCopyHtml.value);
 
   if (window.ClipboardItem && navigator.clipboard?.write) {
     await navigator.clipboard.write([
@@ -1704,11 +1775,64 @@ async function copyArticleHtml() {
   notice.value = '公众号排版已复制，可以粘贴到编辑器。';
 }
 
+function syncArticleDraft(event) {
+  articleDraftHtml.value = event.currentTarget?.innerHTML || '';
+}
+
+function applyArticleTemplate() {
+  if (!articleBlocks.value.length && !articleDraftHtml.value) return;
+  articleDraftHtml.value = buildWechatArticleHtml(articleBlocks.value, {
+    title: resultTitle.value,
+    template: articleTemplate.value
+  });
+  articleView.value = 'layout';
+  notice.value = '已按当前模板重新排版。';
+}
+
+async function rewriteArticle() {
+  if (!resultText.value.trim()) {
+    error.value = '请先提取到文章正文。';
+    return;
+  }
+
+  articleRewriteLoading.value = true;
+  error.value = '';
+  notice.value = '';
+  articleView.value = 'layout';
+
+  try {
+    const response = await fetch('/api/rewrite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'wechat_article',
+        title: resultTitle.value,
+        text: resultText.value,
+        template: articleTemplate.value,
+        images: imageLinks.value.slice(0, 12)
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || 'AI 二创失败');
+    articleDraftHtml.value = payload.data?.html || buildWechatArticleHtml(
+      splitArticleParagraphs(payload.data?.text || resultText.value).map((text) => ({ type: 'text', text })),
+      { title: payload.data?.title || resultTitle.value, template: articleTemplate.value }
+    );
+    notice.value = payload.data?.aiUsed ? 'AI 二创排版已生成，可以继续手动修改。' : '已生成一版本地规则排版稿，可以继续手动修改。';
+  } catch (err) {
+    error.value = err.message || 'AI 二创失败，请稍后再试。';
+  } finally {
+    articleRewriteLoading.value = false;
+  }
+}
+
 function resetResult() {
   error.value = '';
   notice.value = '';
   result.value = null;
   articleView.value = 'text';
+  articleDraftHtml.value = '';
+  articleRewriteLoading.value = false;
 }
 
 onMounted(loadMe);
@@ -2262,25 +2386,54 @@ onMounted(loadMe);
             <div v-if="toolPage?.type === 'article'" class="article-mode-switch">
               <button :class="{ active: articleView === 'text' }" @click="articleView = 'text'">整理正文</button>
               <button :class="{ active: articleView === 'layout' }" @click="articleView = 'layout'">二创排版</button>
-              <button :disabled="!articleBlocks.length" @click="copyArticleHtml">复制公众号排版</button>
+              <select v-model="articleTemplate" class="article-template-select" @change="applyArticleTemplate">
+                <option v-for="template in articleTemplates" :key="template.id" :value="template.id">
+                  {{ template.name }}
+                </option>
+              </select>
+              <button :disabled="articleRewriteLoading || !resultText" @click="rewriteArticle">
+                {{ articleRewriteLoading ? 'AI 二创中...' : 'AI 二创并排版' }}
+              </button>
+              <button :disabled="!articleCopyHtml" @click="copyArticleHtml">复制公众号格式</button>
             </div>
 
-            <article class="result-block">
+            <article v-if="toolPage?.type !== 'article' || articleView === 'text'" class="result-block">
               <span>{{ copyBlockTitle }}</span>
               <p v-if="resultText && articleView === 'text'" class="result-text">{{ resultText }}</p>
-              <div v-else-if="toolPage?.type === 'article' && articleView === 'layout' && articleBlocks.length" class="article-layout-preview">
-                <h3 v-if="resultTitle">{{ resultTitle }}</h3>
-                <template v-for="(block, index) in articleBlocks" :key="`${block.type}-${index}`">
-                  <h4 v-if="block.type === 'heading'">{{ block.text }}</h4>
-                  <p v-else-if="block.type === 'text'">{{ block.text }}</p>
-                  <figure v-else-if="block.type === 'image'">
-                    <img :src="block.src" :alt="`文章图片 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
-                    <figcaption>图片 {{ index + 1 }}</figcaption>
-                  </figure>
-                </template>
-              </div>
               <p v-else>未识别到文案</p>
             </article>
+
+            <section v-else-if="toolPage?.type === 'article' && articleView === 'layout'" class="article-studio">
+              <article class="article-source-panel">
+                <span>原文结构</span>
+                <div v-if="articleBlocks.length" class="article-source-list">
+                  <template v-for="(block, index) in articleBlocks" :key="`${block.type}-${index}`">
+                    <p v-if="block.type === 'heading'" class="source-heading">{{ block.text }}</p>
+                    <p v-else-if="block.type === 'text'">{{ block.text }}</p>
+                    <figure v-else-if="block.type === 'image'">
+                      <img :src="block.src" :alt="`文章图片 ${index + 1}`" loading="lazy" referrerpolicy="no-referrer" />
+                      <figcaption>图片 {{ index + 1 }}</figcaption>
+                    </figure>
+                  </template>
+                </div>
+                <p v-else>未识别到可排版内容</p>
+              </article>
+
+              <article class="article-editor-panel">
+                <div class="article-editor-head">
+                  <span>公众号成品稿</span>
+                  <small>可直接改字、删段落、调整图片位置，完成后复制到公众号后台。</small>
+                </div>
+                <div
+                  class="article-rich-editor"
+                  contenteditable="true"
+                  spellcheck="false"
+                  :data-placeholder="articleRewriteLoading ? 'AI 正在生成公众号稿...' : '点击 AI 二创，或直接在这里编辑排版稿'"
+                  v-html="articleCopyHtml"
+                  @input="syncArticleDraft"
+                ></div>
+              </article>
+            </section>
 
             <article v-if="shouldShowPublishedText" class="result-block">
               <span>平台发布文案</span>

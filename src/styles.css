@@ -1139,6 +1139,113 @@ h1 {
   opacity: 0.45;
 }
 
+.article-template-select {
+  background: #fff;
+  border: 1px solid var(--theme-border);
+  border-radius: 7px;
+  color: var(--theme);
+  font-weight: 850;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.article-studio {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.article-source-panel,
+.article-editor-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.article-source-panel > span,
+.article-editor-head span {
+  color: var(--theme);
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.article-editor-head {
+  margin-bottom: 12px;
+}
+
+.article-editor-head small {
+  color: #64748b;
+  display: block;
+  line-height: 1.6;
+}
+
+.article-source-list {
+  display: grid;
+  gap: 12px;
+  max-height: 680px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.article-source-list p {
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.75;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.article-source-list .source-heading {
+  color: #101828;
+  font-weight: 900;
+}
+
+.article-source-list figure {
+  margin: 0;
+}
+
+.article-source-list img {
+  border-radius: 8px;
+  max-height: 260px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.article-source-list figcaption {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.article-rich-editor {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #111827;
+  line-height: 1.85;
+  min-height: 520px;
+  outline: none;
+  overflow: auto;
+  padding: 22px;
+}
+
+.article-rich-editor:focus {
+  border-color: var(--theme);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme) 14%, transparent);
+}
+
+.article-rich-editor:empty::before {
+  color: #94a3b8;
+  content: attr(data-placeholder);
+}
+
+.article-rich-editor img {
+  max-width: 100%;
+}
+
 .article-layout-preview {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -1678,6 +1785,7 @@ h1 {
   .admin-heading,
   .admin-copy-grid,
   .admin-plan-row,
+  .article-studio,
   .copy-page-row,
   .copy-row,
   .faq-copy-row,
