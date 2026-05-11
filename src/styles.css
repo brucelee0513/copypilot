@@ -1178,10 +1178,10 @@ h1 {
 }
 
 .faq-list article > p {
-  color: #18263c;
-  font-size: 18px;
-  line-height: 1.8;
-  padding: 0 30px 30px;
+  color: #344054;
+  font-size: 16px;
+  line-height: 1.75;
+  padding: 0 30px 28px;
 }
 
 .seo-section {
@@ -1386,7 +1386,7 @@ h1 {
 
   .faq-title p,
   .faq-list article > p {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .faq-question {
