@@ -61,6 +61,16 @@ export async function getSessionUser(request, env) {
   return user || null;
 }
 
+export function isAdminUser(user, env) {
+  if (!user) return false;
+  if (user.plan === 'admin') return true;
+  const allowList = String(env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return allowList.includes(String(user.email || '').toLowerCase());
+}
+
 export async function requireQuota(context, action = 'extract') {
   const { request, env } = context;
   if (!env.DB) return { ok: true, user: null, anonymousId: null, setCookie: null };

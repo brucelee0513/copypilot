@@ -39,6 +39,10 @@ const authMessage = ref('');
 const currentUser = ref(null);
 const usage = ref(null);
 const records = ref([]);
+const adminUsers = ref([]);
+const adminTotal = ref(0);
+const adminLoading = ref(false);
+const adminMessage = ref('');
 const devCode = ref('');
 const isPublicFreeMode = !['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 const openFaqIndex = ref(0);
@@ -427,6 +431,7 @@ const fileAccept = computed(() => (fileMode.value === 'audio' ? 'audio/*' : 'vid
 const fileLabel = computed(() => (fileMode.value === 'audio' ? '选择音频文件' : '选择视频文件'));
 const isLinkInputPage = computed(() => !isFilePage.value);
 const authButtonText = computed(() => currentUser.value ? currentUser.value.email.split('@')[0] : uiText.value.login);
+const isAdmin = computed(() => Boolean(currentUser.value?.isAdmin || currentUser.value?.plan === 'admin'));
 
 const featureCards = computed(() => lang.value === 'en'
   ? [
@@ -1279,9 +1284,12 @@ async function loadMe() {
     const response = await fetch('/api/auth/me');
     const payload = await response.json();
     if (payload.ok) {
-      currentUser.value = payload.user;
+      currentUser.value = payload.user ? { ...payload.user, isAdmin: payload.isAdmin } : null;
       usage.value = payload.usage;
-      if (payload.user) await loadRecords();
+      if (payload.user) {
+        await loadRecords();
+        if (payload.isAdmin) await loadAdminUsers();
+      }
     }
   } catch {
     // 登录状态不影响主工具使用。
@@ -1297,6 +1305,52 @@ async function loadRecords() {
   if (!response?.ok) return;
   const payload = await response.json();
   if (payload.ok) records.value = payload.records || [];
+}
+
+async function loadAdminUsers() {
+  if (!isAdmin.value) {
+    adminUsers.value = [];
+    adminTotal.value = 0;
+    return;
+  }
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/users');
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '用户列表加载失败。');
+    adminUsers.value = payload.users || [];
+    adminTotal.value = payload.total || adminUsers.value.length;
+  } catch (err) {
+    adminMessage.value = err.message || '用户列表加载失败。';
+  } finally {
+    adminLoading.value = false;
+  }
+}
+
+async function saveAdminUser(user) {
+  if (!isAdmin.value || !user?.id) return;
+  adminLoading.value = true;
+  adminMessage.value = '';
+  try {
+    const response = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        plan: user.plan,
+        credits: Number(user.credits || 0)
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '用户更新失败。');
+    adminUsers.value = adminUsers.value.map((item) => item.id === payload.user.id ? payload.user : item);
+    adminMessage.value = '用户已更新。';
+  } catch (err) {
+    adminMessage.value = err.message || '用户更新失败。';
+  } finally {
+    adminLoading.value = false;
+  }
 }
 
 async function sendEmailCode() {
@@ -1350,6 +1404,8 @@ async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
   currentUser.value = null;
   records.value = [];
+  adminUsers.value = [];
+  adminTotal.value = 0;
   await loadMe();
 }
 
@@ -1471,6 +1527,31 @@ onMounted(loadMe);
             <article v-for="item in records" :key="item.id">
               <strong>{{ item.result_title || item.action }}</strong>
               <span>{{ new Date(item.created_at).toLocaleString() }}</span>
+            </article>
+          </div>
+          <div v-if="isAdmin" class="admin-panel">
+            <div class="admin-heading">
+              <div>
+                <h3>用户管理</h3>
+                <p>共 {{ adminTotal }} 个用户，可调整套餐和 Credits。</p>
+              </div>
+              <button class="secondary-button" :disabled="adminLoading" @click="loadAdminUsers">
+                {{ adminLoading ? '刷新中' : '刷新' }}
+              </button>
+            </div>
+            <p v-if="adminMessage" class="auth-message">{{ adminMessage }}</p>
+            <article v-for="user in adminUsers" :key="user.id" class="admin-user-row">
+              <div>
+                <strong>{{ user.email }}</strong>
+                <span>{{ user.name || '未设置昵称' }}</span>
+              </div>
+              <select v-model="user.plan" class="admin-select">
+                <option value="free">free</option>
+                <option value="pro">pro</option>
+                <option value="admin">admin</option>
+              </select>
+              <input v-model.number="user.credits" class="admin-credit" type="number" min="0" max="100000" />
+              <button class="secondary-button" :disabled="adminLoading" @click="saveAdminUser(user)">保存</button>
             </article>
           </div>
           <button class="secondary-button auth-submit" @click="logout">退出登录</button>

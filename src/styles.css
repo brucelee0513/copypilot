@@ -314,10 +314,12 @@ a {
   border: 1px solid #dbe4f0;
   border-radius: 10px;
   box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24);
-  max-width: 460px;
+  max-height: min(88vh, 820px);
+  max-width: 680px;
+  overflow: auto;
   padding: 28px;
   position: relative;
-  width: min(100%, 460px);
+  width: min(100%, 680px);
 }
 
 .auth-panel h2 {
@@ -453,6 +455,53 @@ a {
   border: 1px solid #dbe4f0;
   border-radius: 8px;
   padding: 12px;
+}
+
+.admin-panel {
+  border-top: 1px solid #e5eaf2;
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.admin-heading,
+.admin-user-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-heading {
+  grid-template-columns: 1fr auto;
+}
+
+.admin-heading h3,
+.admin-heading p {
+  margin: 0;
+}
+
+.admin-heading p,
+.admin-user-row span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-user-row {
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  grid-template-columns: 1fr 96px 96px auto;
+  padding: 10px;
+}
+
+.admin-select,
+.admin-credit {
+  border: 1px solid #c9d5e7;
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  width: 100%;
 }
 
 .primary-button {
@@ -1407,6 +1456,12 @@ h1 {
   .site-footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-heading,
+  .admin-user-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 
   .progress-card {
