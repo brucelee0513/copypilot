@@ -1,4 +1,5 @@
 import { json } from './_tikhub.js';
+import { recordUsage, requireQuota } from './_auth.js';
 
 export async function onRequestPost(context) {
   const body = await context.request.json().catch(() => null);
@@ -11,18 +12,37 @@ export async function onRequestPost(context) {
     return json({ ok: false, message: '缺少文章正文。' }, 400);
   }
 
+  const quota = await requireQuota(context, 'extract');
+  if (!quota.ok) return json({ ok: false, message: quota.message, needLogin: quota.status === 401 }, quota.status);
+
   const localDraft = buildLocalDraft({ title, text, images, template });
   const apiKey = context.env.SILICONFLOW_API_KEY;
   const model = context.env.SILICONFLOW_CHAT_MODEL || context.env.SILICONFLOW_REWRITE_MODEL || 'Qwen/Qwen2.5-7B-Instruct';
+  const headers = quota.setCookie ? { 'Set-Cookie': quota.setCookie } : {};
 
   if (!apiKey) {
-    return json({ ok: true, data: { ...localDraft, aiUsed: false, fallbackReason: 'AI 服务未配置，已生成本地规则排版稿。' } });
+    await recordUsage(context, quota, {
+      action: 'extract',
+      resultTitle: title || localDraft.title || 'AI 二创排版',
+      status: 'completed'
+    });
+    return json({ ok: true, data: { ...localDraft, aiUsed: false, fallbackReason: 'AI 服务未配置，已生成本地规则排版稿。' } }, 200, headers);
   }
 
   try {
     const aiDraft = await rewriteWithSiliconFlow({ apiKey, model, title, text, images, template });
-    return json({ ok: true, data: { ...aiDraft, aiUsed: true } });
+    await recordUsage(context, quota, {
+      action: 'extract',
+      resultTitle: title || aiDraft.title || 'AI 二创排版',
+      status: 'completed'
+    });
+    return json({ ok: true, data: { ...aiDraft, aiUsed: true } }, 200, headers);
   } catch (error) {
+    await recordUsage(context, quota, {
+      action: 'extract',
+      resultTitle: title || localDraft.title || 'AI 二创排版',
+      status: 'completed'
+    });
     return json({
       ok: true,
       data: {
@@ -30,7 +50,7 @@ export async function onRequestPost(context) {
         aiUsed: false,
         fallbackReason: error.message || 'AI 二创暂时不可用，已生成本地规则排版稿。'
       }
-    });
+    }, 200, headers);
   }
 }
 

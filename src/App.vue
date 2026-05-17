@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next';
 
 const siteName = 'CopyPilot';
+const FREE_TRANSCRIBE_MAX_SECONDS = 5 * 60;
 const currentPath = ref(window.location.pathname);
 const lang = ref(localStorage.getItem('copypilot-lang') || 'zh');
 const url = ref('');
@@ -571,7 +572,7 @@ const faqs = computed(() => {
       ['Is CopyPilot completely free? Are there usage limits?', 'CopyPilot is currently free for core extraction workflows. You can extract captions, videos, images, audio, and article content directly from the browser.'],
       ['Which platforms are supported? Are overseas platforms supported?', 'CopyPilot targets 50+ mainstream platforms, including Douyin, Xiaohongshu, Kuaishou, Bilibili, Weibo, WeChat articles, TikTok, YouTube, Instagram, Lemon8, and more. Publicly accessible links usually work best.'],
       ['How accurate is video speech-to-text? Which languages are supported?', 'Speech recognition works best when the audio is clear. Chinese, English, Japanese, Korean, and other common languages are supported, while heavy background noise, music, or overlapping voices may reduce accuracy.'],
-      ['How long does extraction take? Are there file size limits?', 'Titles, captions, images, and basic media links usually finish in 3-10 seconds. Speech-to-text requires server processing and depends on the media length. Large files may take longer or need to be split.'],
+      ['How long does extraction take? Are there file size limits?', 'Titles, captions, images, and basic media links usually finish in 3-10 seconds. Speech-to-text requires server processing and depends on the media length. The free version currently supports media within 5 minutes.'],
       ['Are downloaded videos watermarked? Will quality be compressed?', 'When the source provides an original media link, CopyPilot keeps the source quality as much as possible and does not recompress files. Actual watermark and quality depend on what the platform returns.'],
       ['How does batch download work? How many files are supported?', 'On result pages, media sections can provide download actions for videos or images. Batch packaging can be added for suitable result types and is best used for image-heavy posts.'],
       ['Can extracted content be used commercially? Are there copyright issues?', 'CopyPilot is a technical tool. Copyright belongs to the original creators or rights holders. Please follow platform rules and copyright law, mark sources for reference use, and obtain authorization before commercial use.'],
@@ -583,7 +584,7 @@ const faqs = computed(() => {
       ['CopyPilot 完全免费吗？有使用次数限制吗？', 'CopyPilot 当前公开版本免费使用，可以直接提取视频文案、下载视频、提取图片、音频和文章内容。核心工具打开页面即可使用。'],
       ['支持哪些视频平台？是否支持海外平台？', 'CopyPilot 支持 50+ 主流内容平台，包括抖音、小红书、快手、B站、微博、公众号文章、TikTok、YouTube、Instagram、Lemon8 等。只要是公开可访问的作品链接，通常都可以尝试提取。'],
       ['视频文案识别的准确率如何？支持哪些语言？', '音频清晰时，语音转文字效果会更好。当前支持中文、英语、日语、韩语等常见语言。如果视频声音较小、背景噪音较大、多人同时说话或音乐较重，识别准确度可能会受到影响。'],
-      ['提取视频文案需要多长时间？有大小限制吗？', '标题、正文、图片和基础媒体链接通常 3-10 秒内完成。视频文案提取，也就是语音转文字，需要服务器处理，耗时会根据视频长度变化。较大的本地音视频文件可能需要更长时间，必要时可以分段上传。'],
+      ['提取视频文案需要多长时间？有大小限制吗？', '标题、正文、图片和基础媒体链接通常 3-10 秒内完成。视频文案提取，也就是语音转文字，需要服务器处理，耗时会根据视频长度变化。免费版目前支持 5 分钟以内的音视频。'],
       ['下载的视频有水印吗？画质会被压缩吗？', '如果平台接口返回原始媒体链接，CopyPilot 会尽量保留源文件质量，不会主动进行二次压缩。是否带水印、清晰度高低，取决于平台实际返回的媒体资源。'],
       ['批量下载功能如何使用？最多支持多少个文件？', '在提取结果页面，视频或图片区域会显示对应的打开、下载或复制按钮。对于图片较多的图文内容，后续也可以扩展为 ZIP 打包下载，更适合素材整理和批量保存。'],
       ['提取的内容可以商用吗？有版权问题吗？', 'CopyPilot 只提供技术工具服务，提取内容的版权归原作者或权利方所有。使用提取内容时，请遵守相关平台规则和版权法律。学习参考、二次创作建议注明来源，商业使用前请先获得授权。'],
@@ -1348,7 +1349,7 @@ async function extract() {
             publishedText: transcriptPayload.data?.publishedText || publishedText.value
           };
           if (transcriptPayload.data?.transcriptSkipped) {
-            notice.value = transcriptPayload.data.transcriptSkipReason || transcriptPayload.message || '视频超过10分钟，已跳过视频文案识别。';
+            notice.value = transcriptPayload.data.transcriptSkipReason || transcriptPayload.message || '免费版视频超过5分钟，已跳过视频文案识别。';
           }
         } else if (transcriptPayload.data) {
           result.value = { ...result.value, ...transcriptPayload.data };
@@ -1364,7 +1365,7 @@ async function extract() {
     setExtractProgress(uiText.value.progressFinalize, 94);
     if (!notice.value) {
       notice.value = result.value?.transcriptSkipped
-        ? result.value.transcriptSkipReason || '视频超过10分钟，已跳过视频文案识别。'
+        ? result.value.transcriptSkipReason || '免费版视频超过5分钟，已跳过视频文案识别。'
         : endpoint === '/api/transcribe-link' || result.value?.transcript
         ? '提取完成，已识别视频本身文案，并整理标题、素材和标签。'
         : '提取完成，已整理标题、发布文案、标签和可用素材。';
@@ -1390,11 +1391,18 @@ async function transcribeFile() {
     return;
   }
 
+  const durationSeconds = await getSelectedFileDuration(selectedFile.value);
+  if (durationSeconds > FREE_TRANSCRIBE_MAX_SECONDS) {
+    error.value = '免费版转文字仅支持 5 分钟以内的音视频，请选择更短的文件。';
+    return;
+  }
+
   loading.value = true;
   try {
     setExtractProgress(uiText.value.progressUpload, 35);
     const form = new FormData();
     form.set('file', selectedFile.value);
+    form.set('durationSeconds', String(Math.round(durationSeconds || 0)));
     const response = await fetch('/api/transcribe', {
       method: 'POST',
       body: form
@@ -1414,6 +1422,27 @@ async function transcribeFile() {
     loading.value = false;
     extractProgress.value = null;
   }
+}
+
+function getSelectedFileDuration(file) {
+  return new Promise((resolve) => {
+    if (!file) {
+      resolve(0);
+      return;
+    }
+    const media = document.createElement(file.type?.startsWith('audio/') ? 'audio' : 'video');
+    const objectUrl = URL.createObjectURL(file);
+    media.preload = 'metadata';
+    media.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(Number.isFinite(media.duration) ? media.duration : 0);
+    };
+    media.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(0);
+    };
+    media.src = objectUrl;
+  });
 }
 
 function onFileChange(event) {
@@ -2326,6 +2355,7 @@ onMounted(loadMe);
             <small>
               {{ fileMode === 'audio' ? '支持 MP3、M4A、WAV 等音频文件' : '支持 MP4、MOV、M4V 等视频文件' }}
             </small>
+            <small>免费版转文字限制 5 分钟以内</small>
           </label>
           <div class="button-row">
             <button class="primary-button" :disabled="loading || !selectedFile" @click="transcribeFile">

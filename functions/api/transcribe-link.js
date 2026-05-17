@@ -2,7 +2,7 @@ import { extractByUrl, json } from './_tikhub.js';
 import { recordUsage, requireQuota } from './_auth.js';
 import { getDefaultMaxVideoMinutes, getMembershipPlan } from './_plans.js';
 
-const MAX_TRANSCRIBE_SECONDS = 10 * 60;
+const FREE_MAX_TRANSCRIBE_SECONDS = 5 * 60;
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -140,7 +140,7 @@ export async function onRequestPost(context) {
 
 async function getMaxTranscribeSeconds(context, quota) {
   const plan = quota?.user?.plan;
-  if (!context.env.DB || !plan) return MAX_TRANSCRIBE_SECONDS;
+  if (!context.env.DB || !plan || plan === 'free') return FREE_MAX_TRANSCRIBE_SECONDS;
   if (plan === 'admin') return getDefaultMaxVideoMinutes('admin') * 60;
   try {
     const config = await getMembershipPlan(context.env.DB, plan);

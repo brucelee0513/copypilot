@@ -1,5 +1,9 @@
 import { json } from './_tikhub.js';
 import { recordUsage, requireQuota } from './_auth.js';
+import { getDefaultMaxVideoMinutes, getMembershipPlan } from './_plans.js';
+
+const FREE_MAX_TRANSCRIBE_SECONDS = 5 * 60;
+const FREE_MAX_UNKNOWN_DURATION_BYTES = 60 * 1024 * 1024;
 
 export async function onRequestPost(context) {
   const apiKey = context.env.SILICONFLOW_API_KEY;
@@ -17,6 +21,21 @@ export async function onRequestPost(context) {
 
   const quota = await requireQuota(context, 'extract');
   if (!quota.ok) return json({ ok: false, message: quota.message, needLogin: quota.status === 401 }, quota.status);
+
+  const maxTranscribeSeconds = await getMaxTranscribeSeconds(context, quota);
+  const durationSeconds = Number(form.get('durationSeconds') || 0);
+  if (durationSeconds > maxTranscribeSeconds) {
+    return json({
+      ok: false,
+      message: `免费版转文字仅支持 ${Math.round(maxTranscribeSeconds / 60)} 分钟以内的音视频。`
+    }, 400);
+  }
+  if (!quota.user && !durationSeconds && file.size > FREE_MAX_UNKNOWN_DURATION_BYTES) {
+    return json({
+      ok: false,
+      message: '免费版本地转文字仅支持 5 分钟以内的音视频，请选择更短的文件。'
+    }, 400);
+  }
 
   const upstreamForm = new FormData();
   upstreamForm.set('model', model);
@@ -56,6 +75,19 @@ export async function onRequestPost(context) {
       text: payload.text || payload.data?.text || ''
     }
   }, 200, headers);
+}
+
+async function getMaxTranscribeSeconds(context, quota) {
+  const plan = quota?.user?.plan;
+  if (!context.env.DB || !plan || plan === 'free') return FREE_MAX_TRANSCRIBE_SECONDS;
+  if (plan === 'admin') return getDefaultMaxVideoMinutes('admin') * 60;
+  try {
+    const config = await getMembershipPlan(context.env.DB, plan);
+    if (config?.maxVideoMinutes) return config.maxVideoMinutes * 60;
+  } catch {
+    // Use defaults when the editable plan table is unavailable.
+  }
+  return getDefaultMaxVideoMinutes(plan) * 60;
 }
 
 async function safeJson(response) {

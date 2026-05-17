@@ -5,6 +5,7 @@ const SESSION_COOKIE = 'copypilot_session';
 const OAUTH_STATE_COOKIE = 'copypilot_oauth_state';
 const ANON_COOKIE = 'copypilot_anon';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FREE_DAILY_LIMIT = 10;
 
 export { ANON_COOKIE, OAUTH_STATE_COOKIE, SESSION_COOKIE };
 
@@ -75,9 +76,9 @@ export function isAdminUser(user, env) {
 export async function requireQuota(context, action = 'extract') {
   const { request, env } = context;
   if (!env.DB) return { ok: true, user: null, anonymousId: null, setCookie: null };
-  if (getConfig(env).publicFreeMode) return { ok: true, user: null, anonymousId: null, setCookie: null, freeMode: true };
+  const config = getConfig(env);
 
-  const user = await getSessionUser(request, env);
+  const user = config.publicFreeMode ? null : await getSessionUser(request, env);
   if (user) {
     const dailyLimit = await getPlanLimit(env.DB, user.plan);
     const usedToday = await getTodayUsage(env.DB, { userId: user.id, action });
@@ -96,11 +97,12 @@ export async function requireQuota(context, action = 'extract') {
     'SELECT count FROM anonymous_usage_limits WHERE anonymous_id = ? AND action = ? AND window_start = ?'
   ).bind(anon.id, action, windowStart).first();
   const count = Number(record?.count || 0);
-  if (count >= 3) {
+  const dailyLimit = getFreeDailyLimit(env);
+  if (count >= dailyLimit) {
     return {
       ok: false,
       status: 401,
-      message: '游客每天可免费提取 3 次。登录后可获得更多额度。',
+      message: `免费版每天最多可使用 ${dailyLimit} 次，请明天再试。`,
       anonymousId: anon.id,
       setCookie: anon.setCookie
     };
@@ -111,7 +113,6 @@ export async function requireQuota(context, action = 'extract') {
 export async function recordUsage(context, quota, details = {}) {
   const { env } = context;
   if (!env.DB || !quota?.ok) return;
-  if (quota.freeMode) return;
   const action = details.action || 'extract';
   const id = makeId('use');
 
@@ -146,7 +147,7 @@ export async function recordUsage(context, quota, details = {}) {
 export async function getUsageSummary(env, request, user) {
   if (!env.DB) return null;
   const action = 'extract';
-  const dailyLimit = user ? await getPlanLimit(env.DB, user.plan) : 3;
+  const dailyLimit = user ? await getPlanLimit(env.DB, user.plan) : getFreeDailyLimit(env);
   const usedToday = user
     ? await getTodayUsage(env.DB, { userId: user.id, action })
     : await getTodayUsage(env.DB, { anonymousId: (await getAnonymousId(request)).id, action });
@@ -155,6 +156,12 @@ export async function getUsageSummary(env, request, user) {
     usedToday,
     remainingToday: Math.max(dailyLimit - usedToday, 0)
   };
+}
+
+export function getFreeDailyLimit(env) {
+  const configured = Number(env.FREE_DAILY_LIMIT || '');
+  if (Number.isFinite(configured) && configured > 0) return Math.round(configured);
+  return FREE_DAILY_LIMIT;
 }
 
 export async function signSession(payload, secret) {
