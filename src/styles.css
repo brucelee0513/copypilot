@@ -945,6 +945,25 @@ h1 {
   color: var(--theme);
 }
 
+.keyword-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 18px auto 0;
+  max-width: 920px;
+}
+
+.keyword-strip span {
+  background: color-mix(in srgb, var(--theme) 8%, #fff);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  color: var(--theme);
+  font-size: 13px;
+  font-weight: 850;
+  padding: 7px 11px;
+}
+
 .mode-switch {
   background: #eef2f7;
   border-radius: 8px;

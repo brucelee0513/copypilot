@@ -406,6 +406,22 @@
             <div id="countryTable"></div>
           </article>
 
+          <article class="table-card">
+            <div class="table-head">
+              <h2>产品转化漏斗</h2>
+              <span class="muted">来自站内事件</span>
+            </div>
+            <div id="productFunnelTable"></div>
+          </article>
+
+          <article class="table-card">
+            <div class="table-head">
+              <h2>平台使用排行</h2>
+              <span class="muted">按提取事件统计</span>
+            </div>
+            <div id="platformTable"></div>
+          </article>
+
           <article class="table-card wide">
             <div class="table-head">
               <h2>热门路径</h2>
@@ -525,6 +541,16 @@
           ['请求', 'requests', 'num'],
           ['访问', 'visits', 'num'],
           ['流量', 'bytes', 'bytes']
+        ]);
+
+        renderTable('#productFunnelTable', data.productEvents?.funnel || [], [
+          ['事件', 'label'],
+          ['次数', 'count', 'num']
+        ]);
+
+        renderTable('#platformTable', data.productEvents?.platforms || [], [
+          ['平台', 'platform'],
+          ['事件数', 'count', 'num']
         ]);
 
         renderPathTable('#pathTable', data.topPaths, 'requests');

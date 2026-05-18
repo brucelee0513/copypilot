@@ -17,11 +17,13 @@ import {
   Sparkles,
   Upload,
 } from 'lucide-vue-next';
+import { seoPageByPath } from './seo-pages.js';
 
 const siteName = 'CopyPilot';
 const FREE_TRANSCRIBE_MAX_SECONDS = 5 * 60;
-const currentPath = ref(window.location.pathname);
-const lang = ref(localStorage.getItem('copypilot-lang') || 'zh');
+const initialPath = window.location.pathname;
+const currentPath = ref(initialPath);
+const lang = ref(initialPath.startsWith('/en/') ? 'en' : localStorage.getItem('copypilot-lang') || 'zh');
 const url = ref('');
 const fileMode = ref('video');
 const textMode = ref('link');
@@ -450,7 +452,7 @@ function mergeUiText(base, override) {
 }
 
 const toolPage = computed(() => {
-  const page = pageMap[currentPath.value];
+  const page = pageMap[currentPath.value] || seoToolPage(currentPath.value);
   if (!page) return page;
   const localizedPage = lang.value === 'en' ? { ...page, ...(enPageMap[currentPath.value] || {}) } : page;
   const editablePage = siteContent.value?.[lang.value]?.toolPages?.[currentPath.value] || {};
@@ -461,6 +463,7 @@ const toolPage = computed(() => {
     theme: page.theme
   };
 });
+const activeSeoPage = computed(() => seoPageByPath[currentPath.value] || null);
 const isHome = computed(() => !toolPage.value);
 const pageTheme = computed(() => toolPage.value?.theme || 'blue');
 const isLegalPage = computed(() => toolPage.value?.type === 'legal');
@@ -471,6 +474,19 @@ const isLinkInputPage = computed(() => !isFilePage.value);
 const authButtonText = computed(() => currentUser.value ? currentUser.value.email.split('@')[0] : uiText.value.login);
 const isAdmin = computed(() => Boolean(currentUser.value?.isAdmin || currentUser.value?.plan === 'admin'));
 const currentPlanLabel = computed(() => formatPlanName(currentUser.value?.plan));
+
+function seoToolPage(path) {
+  const page = seoPageByPath[path];
+  if (!page || path === '/') return null;
+  return {
+    badge: page.badge,
+    title: page.h1,
+    subtitle: page.description,
+    seoTitle: page.title,
+    type: page.toolType,
+    theme: page.theme
+  };
+}
 
 const articleTemplates = computed(() => lang.value === 'en'
   ? [
@@ -1241,9 +1257,59 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function trackEvent(eventName, payload = {}) {
+  if (typeof window === 'undefined') return;
+  const body = JSON.stringify({
+    eventName,
+    path: currentPath.value,
+    lang: lang.value,
+    toolType: toolPage.value?.type || (isHome.value ? 'home' : 'unknown'),
+    ...payload
+  });
+
+  try {
+    fetch('/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true
+    }).catch(() => {});
+  } catch {
+    // Event tracking must never block the extraction workflow.
+  }
+}
+
+function detectPlatformFromUrl(value) {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    if (host.includes('douyin')) return 'douyin';
+    if (host.includes('xiaohongshu') || host.includes('xhslink')) return 'xiaohongshu';
+    if (host.includes('tiktok')) return 'tiktok';
+    if (host.includes('instagram')) return 'instagram';
+    if (host.includes('youtube') || host.includes('youtu.be')) return 'youtube';
+    if (host.includes('kuaishou') || host.includes('gifshow')) return 'kuaishou';
+    if (host.includes('bilibili') || host.includes('b23.tv')) return 'bilibili';
+    if (host.includes('weibo')) return 'weibo';
+    if (host.includes('weixin.qq.com')) return 'wechat';
+    if (host.includes('zhihu')) return 'zhihu';
+    return host.replace(/^www\./, '').split('.')[0] || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function durationBucket(seconds) {
+  if (!seconds) return 'unknown';
+  if (seconds <= 60) return '0-1m';
+  if (seconds <= 300) return '1-5m';
+  if (seconds <= 600) return '5-10m';
+  return '10m+';
+}
+
 function navigate(path) {
   window.history.pushState({}, '', path);
   currentPath.value = path;
+  if (path.startsWith('/en/')) lang.value = 'en';
   if (path === '/audio-extract') fileMode.value = 'audio';
   if (path === '/audio-to-text') fileMode.value = 'audio';
   if (path === '/local-audio-to-text') fileMode.value = 'audio';
@@ -1254,6 +1320,7 @@ function navigate(path) {
   if (path === '/article' || path === '/wechat-article' || path === '/article-studio') articleView.value = 'text';
   resetResult();
   updateMeta();
+  trackEvent('page_view', { path });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1266,15 +1333,17 @@ function toggleLang() {
 window.onpopstate = () => {
   currentPath.value = window.location.pathname;
   updateMeta();
+  trackEvent('page_view', { path: currentPath.value, navigation: 'popstate' });
 };
 
 function updateMeta() {
   const page = pageMap[currentPath.value];
   const activePage = toolPage.value || page;
-  const title = lang.value === 'en'
+  const seoPage = activeSeoPage.value;
+  const title = seoPage?.title || (lang.value === 'en'
     ? activePage?.title || uiText.value.heroTitle
-    : activePage?.seoTitle || activePage?.title || uiText.value.heroTitle;
-  const description = activePage?.subtitle || uiText.value.heroSubtitle;
+    : activePage?.seoTitle || activePage?.title || uiText.value.heroTitle);
+  const description = seoPage?.description || activePage?.subtitle || uiText.value.heroSubtitle;
   document.title = `${title} | ${siteName}`;
   let meta = document.querySelector('meta[name="description"]');
   if (!meta) {
@@ -1283,6 +1352,13 @@ function updateMeta() {
     document.head.appendChild(meta);
   }
   meta.setAttribute('content', description);
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.setAttribute('rel', 'canonical');
+    document.head.appendChild(canonical);
+  }
+  canonical.setAttribute('href', `${window.location.origin}${currentPath.value}`);
 }
 
 updateMeta();
@@ -1307,6 +1383,9 @@ async function extract() {
     return;
   }
 
+  const platform = detectPlatformFromUrl(cleanUrl);
+  const targetType = toolPage.value?.type || 'auto';
+  trackEvent('extract_start', { inputType: 'link', platform, targetType });
   loading.value = true;
   try {
     url.value = cleanUrl;
@@ -1370,11 +1449,25 @@ async function extract() {
         ? '提取完成，已识别视频本身文案，并整理标题、素材和标签。'
         : '提取完成，已整理标题、发布文案、标签和可用素材。';
     }
+    trackEvent('extract_success', {
+      inputType: 'link',
+      platform,
+      targetType,
+      hasVideo: Boolean(videoLinks.value.length),
+      hasImage: Boolean(imageLinks.value.length),
+      hasTranscript: Boolean(result.value?.transcript)
+    });
     await loadMe();
   } catch (err) {
     error.value = err.message === 'Failed to fetch'
       ? '接口请求失败或超时，请稍后重试；如果是小红书图文，请优先使用手机 App 复制的完整分享链接。'
       : err.message || '提取失败，请稍后重试。';
+    trackEvent('extract_failed', {
+      inputType: 'link',
+      platform,
+      targetType,
+      reason: String(error.value || '').slice(0, 90)
+    });
   } finally {
     loading.value = false;
     extractProgress.value = null;
@@ -1394,9 +1487,22 @@ async function transcribeFile() {
   const durationSeconds = await getSelectedFileDuration(selectedFile.value);
   if (durationSeconds > FREE_TRANSCRIBE_MAX_SECONDS) {
     error.value = '免费版转文字仅支持 5 分钟以内的音视频，请选择更短的文件。';
+    trackEvent('extract_blocked', {
+      inputType: 'file',
+      mediaType: fileMode.value,
+      targetType: 'speech_to_text',
+      durationBucket: durationBucket(durationSeconds),
+      reason: 'free_duration_limit'
+    });
     return;
   }
 
+  trackEvent('extract_start', {
+    inputType: 'file',
+    mediaType: fileMode.value,
+    targetType: 'speech_to_text',
+    durationBucket: durationBucket(durationSeconds)
+  });
   loading.value = true;
   try {
     setExtractProgress(uiText.value.progressUpload, 35);
@@ -1415,9 +1521,22 @@ async function transcribeFile() {
     };
     setExtractProgress(uiText.value.progressFinalize, 94);
     notice.value = '转写完成，已提取音视频中的文案。';
+    trackEvent('extract_success', {
+      inputType: 'file',
+      mediaType: fileMode.value,
+      targetType: 'speech_to_text',
+      durationBucket: durationBucket(durationSeconds)
+    });
     await loadMe();
   } catch (err) {
     error.value = err.message || '转写失败，请稍后重试。';
+    trackEvent('extract_failed', {
+      inputType: 'file',
+      mediaType: fileMode.value,
+      targetType: 'speech_to_text',
+      durationBucket: durationBucket(durationSeconds),
+      reason: String(error.value || '').slice(0, 90)
+    });
   } finally {
     loading.value = false;
     extractProgress.value = null;
@@ -1460,6 +1579,7 @@ async function paste() {
   error.value = '';
   try {
     url.value = await navigator.clipboard.readText();
+    trackEvent('paste_link', { hasText: Boolean(url.value.trim()) });
   } catch {
     error.value = '无法读取剪贴板，请手动粘贴。';
   }
@@ -1785,6 +1905,10 @@ async function copyText(value) {
   if (!text) return;
   await navigator.clipboard.writeText(text);
   notice.value = '文案已复制。';
+  trackEvent('copy_text', {
+    targetType: toolPage.value?.type || 'auto',
+    textLength: text.length
+  });
 }
 
 async function copyArticleHtml() {
@@ -1802,6 +1926,10 @@ async function copyArticleHtml() {
     await navigator.clipboard.writeText(plainText);
   }
   notice.value = '公众号排版已复制，可以粘贴到编辑器。';
+  trackEvent('copy_article_html', {
+    targetType: 'article',
+    textLength: plainText.length
+  });
 }
 
 function syncArticleDraft(event) {
@@ -1824,6 +1952,12 @@ async function rewriteArticle() {
     return;
   }
 
+  trackEvent('rewrite_start', {
+    targetType: 'article',
+    template: articleTemplate.value,
+    textLength: resultText.value.length,
+    imageCount: imageLinks.value.length
+  });
   articleRewriteLoading.value = true;
   error.value = '';
   notice.value = '';
@@ -1848,8 +1982,18 @@ async function rewriteArticle() {
       { title: payload.data?.title || resultTitle.value, template: articleTemplate.value }
     );
     notice.value = payload.data?.aiUsed ? 'AI 二创排版已生成，可以继续手动修改。' : '已生成一版本地规则排版稿，可以继续手动修改。';
+    trackEvent('rewrite_success', {
+      targetType: 'article',
+      template: articleTemplate.value,
+      aiUsed: Boolean(payload.data?.aiUsed)
+    });
   } catch (err) {
     error.value = err.message || 'AI 二创失败，请稍后再试。';
+    trackEvent('rewrite_failed', {
+      targetType: 'article',
+      template: articleTemplate.value,
+      reason: String(error.value || '').slice(0, 90)
+    });
   } finally {
     articleRewriteLoading.value = false;
   }
@@ -1864,7 +2008,10 @@ function resetResult() {
   articleRewriteLoading.value = false;
 }
 
-onMounted(loadMe);
+onMounted(async () => {
+  await loadMe();
+  trackEvent('page_view', { path: currentPath.value });
+});
 </script>
 
 <template>
@@ -2376,6 +2523,10 @@ onMounted(loadMe);
           <button @click="navigate('/text')"><Captions :size="17" /> {{ uiText.nav[2] }}</button>
           <button @click="navigate('/image-text')"><Image :size="17" /> {{ uiText.nav[3] }}</button>
           <button @click="navigate('/article')"><FileText :size="17" /> {{ uiText.nav[4] }}</button>
+        </div>
+
+        <div v-if="activeSeoPage?.keywords?.length" class="keyword-strip">
+          <span v-for="keyword in activeSeoPage.keywords" :key="keyword">{{ keyword }}</span>
         </div>
       </section>
 

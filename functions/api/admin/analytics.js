@@ -23,12 +23,13 @@ export async function onRequestGet({ request, env }) {
     const zoneTag = env.CLOUDFLARE_ZONE_ID || DEFAULT_ZONE_ID;
     const zoneName = env.CLOUDFLARE_ZONE_NAME || DEFAULT_ZONE_NAME;
 
-    const [hourly, daily, topPaths, topTraffic, topCountries] = await Promise.all([
+    const [hourly, daily, topPaths, topTraffic, topCountries, productEvents] = await Promise.all([
       fetchHourly({ apiToken, zoneTag, start, end: now }),
       fetchDaily({ apiToken, zoneTag, days: 7 }),
       fetchTopPaths({ apiToken, zoneTag, zoneName, now, sortBy: 'count' }),
       fetchTopPaths({ apiToken, zoneTag, zoneName, now, sortBy: 'bytes' }),
-      fetchTopCountries({ apiToken, zoneTag, zoneName, now })
+      fetchTopCountries({ apiToken, zoneTag, zoneName, now }),
+      fetchProductEvents({ db: env.DB, hours: rangeHours })
     ]);
 
     const totals = summarizeHourly(hourly);
@@ -53,12 +54,74 @@ export async function onRequestGet({ request, env }) {
         topHours,
         topPaths,
         topTraffic,
-        topCountries
+        topCountries,
+        productEvents
       },
     });
   } catch (error) {
     return json({ ok: false, message: error.message || '统计数据读取失败。' }, 500);
   }
+}
+
+async function fetchProductEvents({ db, hours }) {
+  if (!db) return emptyProductEvents();
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  try {
+    const [events, paths, platforms] = await Promise.all([
+      db.prepare(
+        `SELECT event_name AS eventName, COUNT(*) AS count
+         FROM product_events
+         WHERE datetime(created_at) >= datetime(?)
+         GROUP BY event_name
+         ORDER BY count DESC`
+      ).bind(since).all(),
+      db.prepare(
+        `SELECT path, COUNT(*) AS count
+         FROM product_events
+         WHERE datetime(created_at) >= datetime(?) AND path IS NOT NULL AND path != ''
+         GROUP BY path
+         ORDER BY count DESC
+         LIMIT 20`
+      ).bind(since).all(),
+      db.prepare(
+        `SELECT platform, COUNT(*) AS count
+         FROM product_events
+         WHERE datetime(created_at) >= datetime(?) AND platform IS NOT NULL AND platform != ''
+         GROUP BY platform
+         ORDER BY count DESC
+         LIMIT 15`
+      ).bind(since).all()
+    ]);
+
+    const eventRows = events.results || [];
+    const map = Object.fromEntries(eventRows.map((row) => [row.eventName, Number(row.count || 0)]));
+    return {
+      totals: eventRows,
+      funnel: [
+        { label: '页面访问', eventName: 'page_view', count: map.page_view || 0 },
+        { label: '粘贴链接', eventName: 'paste_link', count: map.paste_link || 0 },
+        { label: '开始提取', eventName: 'extract_start', count: map.extract_start || 0 },
+        { label: '提取成功', eventName: 'extract_success', count: map.extract_success || 0 },
+        { label: '提取失败', eventName: 'extract_failed', count: map.extract_failed || 0 },
+        { label: '复制结果', eventName: 'copy_text', count: map.copy_text || 0 },
+        { label: 'AI 二创开始', eventName: 'rewrite_start', count: map.rewrite_start || 0 },
+        { label: 'AI 二创成功', eventName: 'rewrite_success', count: map.rewrite_success || 0 }
+      ],
+      topPaths: paths.results || [],
+      platforms: platforms.results || []
+    };
+  } catch {
+    return emptyProductEvents();
+  }
+}
+
+function emptyProductEvents() {
+  return {
+    totals: [],
+    funnel: [],
+    topPaths: [],
+    platforms: []
+  };
 }
 
 async function fetchHourly({ apiToken, zoneTag, start, end }) {

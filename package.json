@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "postbuild": "node scripts/generate-seo-pages.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "cf:dev": "wrangler pages dev dist --compatibility-date=2026-05-09",
     "cf:deploy": "wrangler pages deploy dist",

@@ -1,37 +1,9 @@
-const ROUTES = [
-  '/',
-  '/video',
-  '/text',
-  '/image-text',
-  '/article',
-  '/douyin-video-download',
-  '/xiaohongshu-image-download',
-  '/wechat-article',
-  '/tiktok-video-download',
-  '/kuaishou-video-download',
-  '/bilibili-video-download',
-  '/youtube-video-download',
-  '/weibo-video-download',
-  '/instagram-video-download',
-  '/instagram-image-download',
-  '/lemon8-image-download',
-  '/weibo-image-download',
-  '/zhihu-article',
-  '/web-article',
-  '/video-to-text',
-  '/audio-to-text',
-  '/local-video-to-text',
-  '/local-audio-to-text',
-  '/privacy',
-  '/terms',
-  '/copyright',
-  '/contact'
-];
+import { seoRoutes } from '../src/seo-pages.js';
 
 export async function onRequestGet(context) {
   const origin = new URL(context.request.url).origin;
   const today = new Date().toISOString().slice(0, 10);
-  const urls = ROUTES.map((route) => {
+  const urls = seoRoutes.map((route) => {
     return [
       '  <url>',
       `    <loc>${escapeXml(`${origin}${route}`)}</loc>`,
