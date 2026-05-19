@@ -22,7 +22,8 @@ for (const page of seoPages) {
 }
 
 await writeFile(path.join(distDir, 'sitemap.xml'), renderSitemap(), 'utf8');
-await writeFile(path.join(distDir, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}/sitemap.xml\n`, 'utf8');
+await writeFile(path.join(distDir, 'sitemap.txt'), renderSitemapText(), 'utf8');
+await writeFile(path.join(distDir, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}/sitemap.xml\nSitemap: ${siteOrigin}/sitemap.txt\n`, 'utf8');
 
 function renderHtml(baseHtml, page) {
   const canonical = `${siteOrigin}${page.path}`;
@@ -90,6 +91,10 @@ function renderSitemap() {
     ].join('\n');
   }).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
+
+function renderSitemapText() {
+  return `${seoRoutes.map((route) => `${siteOrigin}${route}`).join('\n')}\n`;
 }
 
 function escapeHtml(value) {
