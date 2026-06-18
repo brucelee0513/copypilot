@@ -4,4 +4,4 @@ pages_build_output_dir = "dist"
 
 [vars]
 TIKHUB_BASE_URL = "https://api.tikhub.io"
-
+TIKHUB_API_KEY = "0KwdGukX/XOls2HDIZma4QXcOSqqe7B8vy6Avn69dv2Hhm75FCWecGvDMw=="
